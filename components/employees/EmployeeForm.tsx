@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import Modal from "../Modal";
+import OptionSelect from "../OptionSelect";
 import { readJson } from "@/lib/http";
 import {
   EMPLOYEE_FIELDS,
   EMPLOYEE_STATUSES,
+  SUGGESTED_DEPARTMENTS,
+  SUGGESTED_DESIGNATIONS,
   SUGGESTED_LEVELS,
   SUGGESTED_SYSTEM_REQUIREMENTS,
   SUGGESTED_UNITS,
@@ -29,10 +32,20 @@ const today = () => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 
+/** Usual values first, then values already used, without case-insensitive duplicates. */
+function merge(usual: string[], used: string[] = []) {
+  const seen = new Set<string>();
+  return [...usual, ...used.toSorted((a, b) => a.localeCompare(b))].filter((v) => {
+    const key = v.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const INPUT_TYPES: Record<string, string> = { date: "date", email: "email", phone: "tel" };
 const PLACEHOLDERS: Partial<Record<EmployeeFieldKey, string>> = {
   Email: "name@company.com",
-  BaseLocation: "e.g. Jaipur, Rajasthan",
   MobilePersonal: "e.g. 99931 17108",
   MobileOfficial: "e.g. 7253000640",
 };
@@ -55,13 +68,13 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
 
   // Suggestions: values already used plus the sheet's usual ones.
   const suggestions: Partial<Record<EmployeeFieldKey, string[]>> = {
-    Unit: [...new Set([...SUGGESTED_UNITS, ...(options?.Unit ?? [])])],
-    EmployeeLevel: [...new Set([...SUGGESTED_LEVELS, ...(options?.EmployeeLevel ?? [])])],
-    SystemRequirement: [...new Set([...SUGGESTED_SYSTEM_REQUIREMENTS, ...(options?.SystemRequirement ?? [])])],
-    Designation: options?.Designation,
-    Department: options?.Department,
-    ReportingTo: options?.ReportingTo,
-    BaseLocation: options?.BaseLocation,
+    Unit: merge(SUGGESTED_UNITS, options?.Unit),
+    EmployeeLevel: merge(SUGGESTED_LEVELS, options?.EmployeeLevel),
+    Designation: merge(SUGGESTED_DESIGNATIONS, options?.Designation),
+    BaseLocation: merge([], options?.BaseLocation),
+    Department: merge(SUGGESTED_DEPARTMENTS, options?.Department),
+    ReportingTo: merge([], options?.ReportingTo),
+    SystemRequirement: merge(SUGGESTED_SYSTEM_REQUIREMENTS, options?.SystemRequirement),
   };
 
   const set = (key: EmployeeFieldKey, value: string) => setValues((v) => ({ ...v, [key]: value }));
@@ -128,30 +141,22 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
                       <option key={s}>{s}</option>
                     ))}
                   </select>
+                ) : list ? (
+                  <OptionSelect id={id} value={values[f.key]} options={list} onChange={(v) => set(f.key, v)} label={f.label} maxLength={"max" in f ? f.max : undefined} />
                 ) : f.key === "CorrespondenceAddress" ? (
                   <textarea id={id} className="field" rows={2} value={values[f.key]} onChange={(e) => set(f.key, e.target.value)} maxLength={f.max} />
                 ) : (
-                  <>
-                    <input
-                      id={id}
-                      type={INPUT_TYPES[type] ?? "text"}
-                      className="field"
-                      value={values[f.key]}
-                      onChange={(e) => set(f.key, e.target.value)}
-                      maxLength={"max" in f ? f.max : undefined}
-                      required={required}
-                      autoFocus={f.key === "DisplayName"}
-                      list={list?.length ? `${id}-options` : undefined}
-                      placeholder={PLACEHOLDERS[f.key]}
-                    />
-                    {list?.length ? (
-                      <datalist id={`${id}-options`}>
-                        {list.map((v) => (
-                          <option key={v} value={v} />
-                        ))}
-                      </datalist>
-                    ) : null}
-                  </>
+                  <input
+                    id={id}
+                    type={INPUT_TYPES[type] ?? "text"}
+                    className="field"
+                    value={values[f.key]}
+                    onChange={(e) => set(f.key, e.target.value)}
+                    maxLength={"max" in f ? f.max : undefined}
+                    required={required}
+                    autoFocus={f.key === "DisplayName"}
+                    placeholder={PLACEHOLDERS[f.key]}
+                  />
                 )}
               </div>
             );

@@ -186,6 +186,8 @@ export type AppTrainingState = (typeof APP_TRAINING_STATES)[number];
 export const SUGGESTED_UNITS = ["SALES", "PLANT"];
 export const SUGGESTED_LEVELS = ["Junior", "Senior"];
 export const SUGGESTED_SYSTEM_REQUIREMENTS = ["Laptop", "Desktop", "Not Required"];
+export const SUGGESTED_DESIGNATIONS = ["Executive", "Senior Executive", "Deputy Manager", "LAS"];
+export const SUGGESTED_DEPARTMENTS = ["Sales & Marketing", "Production", "Design & Costing"];
 
 export interface Employee {
   Id: number;
