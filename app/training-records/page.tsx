@@ -96,6 +96,19 @@ export default function TrainingRecords() {
     if (session) setViewSession(session);
   }
 
+  // Links from an employee's training history open a session directly: /training-records?session=12
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("session"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    fetch(`/api/training/${id}`, { cache: "no-store" })
+      .then((res) => readJson<TrainingSessionDetail>(res))
+      .then((session) => {
+        setViewSession(session);
+        window.history.replaceState(null, "", window.location.pathname);
+      })
+      .catch((err) => setError(err.message));
+  }, []);
+
   async function handleEdit(id: number) {
     const session = await loadSession(id);
     if (session) {
@@ -214,7 +227,7 @@ export default function TrainingRecords() {
               <input
                 type="search"
                 className="field pl-9"
-                placeholder="Search by session, employee, code, department or trainer..."
+                placeholder="Search by session, employee, email, department or trainer..."
                 value={filters.search}
                 onChange={(e) => setFilter("search", e.target.value)}
                 aria-label="Search training records"
@@ -297,8 +310,6 @@ export default function TrainingRecords() {
         <TrainingForm
           session={formSession}
           knownTrainers={data?.trainers ?? []}
-          knownEmployees={data?.employees ?? []}
-          departments={data?.departments ?? []}
           onClose={() => setFormSession(undefined)}
           onSaved={(message) => {
             setFormSession(undefined);
@@ -315,9 +326,10 @@ export default function TrainingRecords() {
           title="Delete training session?"
           message={
             <>
-              Session <span className="font-medium text-slate-800">#{deleteTarget.Id} &ldquo;{deleteTarget.Title}&rdquo;</span>, its {deleteTarget.AttendeeCount} employee record
+              Session <span className="font-medium text-slate-800">#{deleteTarget.Id} &ldquo;{deleteTarget.Title}&rdquo;</span>, its {deleteTarget.AttendeeCount} training record
               {deleteTarget.AttendeeCount === 1 ? "" : "s"}
-              {deleteTarget.ImageCount > 0 && ` and ${deleteTarget.ImageCount} screenshot${deleteTarget.ImageCount === 1 ? "" : "s"}`} will be permanently deleted.
+              {deleteTarget.ImageCount > 0 && ` and ${deleteTarget.ImageCount} screenshot${deleteTarget.ImageCount === 1 ? "" : "s"}`} will be permanently deleted. The employees
+              themselves stay in New Joiners.
             </>
           }
           busy={deleting}

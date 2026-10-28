@@ -49,7 +49,7 @@ export default function IssueDetails({ issue, onClose, onEdit }: IssueDetailsPro
           </>
         }
       >
-        <h3 className="text-lg font-semibold break-words text-slate-900">{issue.Title}</h3>
+        <h3 className="text-lg font-semibold wrap-break-word text-slate-900">{issue.Title}</h3>
 
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
           {meta.map(([label, value]) => (
@@ -62,7 +62,7 @@ export default function IssueDetails({ issue, onClose, onEdit }: IssueDetailsPro
 
         <div className="mt-5">
           <h4 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Description</h4>
-          <p className="mt-1.5 text-sm whitespace-pre-wrap break-words text-slate-700">
+          <p className="mt-1.5 text-sm whitespace-pre-wrap wrap-break-word text-slate-700">
             {issue.Description || <span className="text-slate-400 italic">No description provided.</span>}
           </p>
         </div>

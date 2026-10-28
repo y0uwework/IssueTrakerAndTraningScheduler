@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       recordsReq.query(recordsQuery(records.whereSql, records.orderSql)),
       sessionsReq.query(`
         SELECT s.Id, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status, s.Notes,
-               (SELECT STRING_AGG(t.TrainerName, N', ') WITHIN GROUP (ORDER BY t.TrainerName)
+               (SELECT STRING_AGG(t.TrainerName + N' (' + t.App + N')', N', ') WITHIN GROUP (ORDER BY t.App DESC, t.TrainerName)
                 FROM dbo.TrainingSessionTrainers t WHERE t.SessionId = s.Id) AS Trainers,
                (SELECT COUNT(*) FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) AS AttendeeCount,
                (SELECT COUNT(*) FROM dbo.TrainingImages im WHERE im.SessionId = s.Id) AS ImageCount
@@ -57,9 +57,15 @@ export async function GET(request: NextRequest) {
 
     const recordSheet = workbook.addWorksheet("Training Records", { views: [{ state: "frozen", ySplit: 1 }] });
     recordSheet.columns = [
-      { header: "Employee", key: "EmployeeName", width: 24 },
-      { header: "Employee Code", key: "EmployeeCode", width: 14 },
+      { header: "Employee", key: "DisplayName", width: 24 },
+      { header: "Email", key: "Email", width: 28 },
+      { header: "Unit", key: "Unit", width: 10 },
+      { header: "Level", key: "EmployeeLevel", width: 10 },
+      { header: "Designation", key: "Designation", width: 18 },
       { header: "Department", key: "Department", width: 18 },
+      { header: "Base Location", key: "BaseLocation", width: 18 },
+      { header: "Date of Joining", key: "DateOfJoining", width: 14, style: { numFmt: "dd.mm.yyyy" } },
+      { header: "Reporting To", key: "ReportingTo", width: 18 },
       { header: "App", key: "App", width: 8 },
       { header: "Trained By", key: "Trainers", width: 28 },
       { header: "Session ID", key: "SessionId", width: 10 },
@@ -85,7 +91,7 @@ export async function GET(request: NextRequest) {
       { header: "Location / Meeting Link", key: "Where", width: 28 },
       { header: "Status", key: "Status", width: 12 },
       { header: "Trainers", key: "Trainers", width: 28 },
-      { header: "Attendee Rows", key: "AttendeeCount", width: 14 },
+      { header: "Employee/App Rows", key: "AttendeeCount", width: 16 },
       { header: "Screenshots", key: "ImageCount", width: 12 },
       { header: "Notes", key: "Notes", width: 50 },
     ];

@@ -19,10 +19,11 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/trainin
       SELECT Id, Title, StartAt, EndAt, Mode, Location, MeetingLink, Status, Notes, CreatedAt, UpdatedAt
       FROM dbo.TrainingSessions WHERE Id = @Id;
 
-      SELECT TrainerName FROM dbo.TrainingSessionTrainers WHERE SessionId = @Id ORDER BY TrainerName;
+      SELECT App, TrainerName FROM dbo.TrainingSessionTrainers WHERE SessionId = @Id ORDER BY App DESC, TrainerName;
 
-      SELECT a.AttendeeId, a.EmployeeName, a.EmployeeCode, a.Department, a.App, t.TrainerName
+      SELECT a.AttendeeId, a.EmployeeId, e.DisplayName, e.Email, e.Designation, e.Department, e.Unit, a.App, t.TrainerName
       FROM dbo.TrainingAttendees a
+      JOIN dbo.Employees e ON e.Id = a.EmployeeId
       LEFT JOIN dbo.TrainingAttendeeTrainers t ON t.AttendeeId = a.AttendeeId
       WHERE a.SessionId = @Id
       ORDER BY a.AttendeeId, t.TrainerName;
@@ -41,9 +42,12 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/trainin
       let attendee = attendees.get(key);
       if (!attendee) {
         attendee = {
-          EmployeeName: row.EmployeeName as string,
-          EmployeeCode: row.EmployeeCode as string | null,
+          EmployeeId: row.EmployeeId as number,
+          DisplayName: row.DisplayName as string,
+          Email: row.Email as string | null,
+          Designation: row.Designation as string | null,
           Department: row.Department as string | null,
+          Unit: row.Unit as string | null,
           App: row.App as TrainingAttendee["App"],
           Trainers: [],
         };
@@ -54,7 +58,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/trainin
 
     return NextResponse.json({
       ...session,
-      trainers: trainers.map((r) => r.TrainerName as string),
+      trainers,
       attendees: [...attendees.values()],
       images,
     });

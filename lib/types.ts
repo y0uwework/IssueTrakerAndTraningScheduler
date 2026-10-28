@@ -114,30 +114,43 @@ export interface TrainingSessionListItem extends Omit<TrainingSession, "Notes"> 
   ImageCount: number;
 }
 
+/** A trainer assigned to one app in a session. */
+export interface TrainerAssignment {
+  App: App;
+  TrainerName: string;
+}
+
 export interface TrainingAttendee {
-  EmployeeName: string;
-  EmployeeCode: string | null;
+  EmployeeId: number;
+  DisplayName: string;
+  Email: string | null;
+  Designation: string | null;
   Department: string | null;
+  Unit: string | null;
   App: App;
   Trainers: string[];
 }
 
 export interface TrainingSessionDetail extends TrainingSession {
-  trainers: string[];
+  trainers: TrainerAssignment[];
   attendees: TrainingAttendee[];
   images: IssueImage[];
 }
 
-/** One employee trained on one app in one session. */
+/** One new joiner trained on one app in one session. */
 export interface TrainingRecordRow {
   AttendeeId: number;
   SessionId: number;
   Title: string;
   StartAt: string;
   Status: TrainingStatus;
-  EmployeeName: string;
-  EmployeeCode: string | null;
+  EmployeeId: number;
+  DisplayName: string;
+  Email: string | null;
+  Unit: string | null;
+  Designation: string | null;
   Department: string | null;
+  DateOfJoining: string | null;
   App: App;
   Trainers: string | null; // comma-separated
 }
@@ -149,21 +162,126 @@ export interface TrainingStats {
   employeesTrained: number;
 }
 
-export interface KnownEmployee {
-  EmployeeName: string;
-  EmployeeCode: string | null;
-  Department: string | null;
-}
-
 export interface TrainingListResponse {
   sessions?: TrainingSessionListItem[];
   records?: TrainingRecordRow[];
   stats: TrainingStats;
   trainers: string[];
-  employees: KnownEmployee[];
-  departments: string[];
 }
 
 export function trainingImageUrl(imageId: number) {
   return `/api/training/images/${imageId}`;
+}
+
+/* ---------------- New Joiners (employees) ---------------- */
+
+export const EMPLOYEE_STATUSES = ["Active", "Inactive"] as const;
+export type EmployeeStatus = (typeof EMPLOYEE_STATUSES)[number];
+
+/** Per-app training progress: Trained = in a Completed session, Scheduled = in a Scheduled one. */
+export const APP_TRAINING_STATES = ["Pending", "Scheduled", "Trained"] as const;
+export type AppTrainingState = (typeof APP_TRAINING_STATES)[number];
+
+// Suggestions offered in the form; any other value can still be typed.
+export const SUGGESTED_UNITS = ["SALES", "PLANT"];
+export const SUGGESTED_LEVELS = ["Junior", "Senior"];
+export const SUGGESTED_SYSTEM_REQUIREMENTS = ["Laptop", "Desktop", "Not Required"];
+
+export interface Employee {
+  Id: number;
+  CreationDate: string | null; // DATE, serialized as midnight UTC
+  Unit: string | null;
+  DisplayName: string;
+  EmployeeLevel: string | null;
+  Email: string | null;
+  DateOfJoining: string | null;
+  Designation: string | null;
+  BaseLocation: string | null;
+  Department: string | null;
+  ReportingTo: string | null;
+  MobilePersonal: string | null;
+  MobileOfficial: string | null;
+  SystemRequirement: string | null;
+  CorrespondenceAddress: string | null;
+  Status: EmployeeStatus;
+  CreatedAt: string;
+  UpdatedAt: string;
+}
+
+/** Editable employee columns, in the same order as the HR new-joiner sheet. */
+export const EMPLOYEE_FIELDS = [
+  { key: "CreationDate", label: "Date of Creation", type: "date" },
+  { key: "Unit", label: "Unit", max: 50 },
+  { key: "DisplayName", label: "Display Name", max: 100, required: true },
+  { key: "EmployeeLevel", label: "Level", max: 30 },
+  { key: "Email", label: "User Email ID", max: 200, type: "email" },
+  { key: "DateOfJoining", label: "Date of Joining", type: "date" },
+  { key: "Designation", label: "Designation", max: 100 },
+  { key: "BaseLocation", label: "Base Location", max: 200 },
+  { key: "Department", label: "Department", max: 100 },
+  { key: "ReportingTo", label: "Reporting To", max: 100 },
+  { key: "MobilePersonal", label: "Mobile Personal", max: 20, type: "phone" },
+  { key: "MobileOfficial", label: "Mobile Official", max: 20, type: "phone" },
+  { key: "SystemRequirement", label: "System Requirement", max: 100 },
+  { key: "CorrespondenceAddress", label: "Correspondence Address", max: 500 },
+  { key: "Status", label: "Status", type: "status" },
+] as const satisfies readonly { key: keyof Employee; label: string; max?: number; type?: string; required?: boolean }[];
+
+export type EmployeeFieldKey = (typeof EMPLOYEE_FIELDS)[number]["key"];
+export type EmployeeInput = Partial<Record<EmployeeFieldKey, string | null>>;
+
+export interface EmployeeListItem extends Employee {
+  HrmsTraining: AppTrainingState;
+  CrmTraining: AppTrainingState;
+}
+
+export interface EmployeeStats {
+  total: number;
+  active: number;
+  hrmsTrained: number;
+  crmTrained: number;
+}
+
+export interface EmployeeListResponse {
+  employees: EmployeeListItem[];
+  stats: EmployeeStats;
+  options: Record<"Unit" | "Department" | "Designation" | "EmployeeLevel" | "ReportingTo" | "SystemRequirement" | "BaseLocation", string[]>;
+}
+
+export interface EmployeeTrainingHistory {
+  SessionId: number;
+  Title: string;
+  StartAt: string;
+  Status: TrainingStatus;
+  App: App;
+  Trainers: string | null;
+}
+
+export interface EmployeeDetail extends EmployeeListItem {
+  training: EmployeeTrainingHistory[];
+}
+
+export interface EmployeeImportResult {
+  inserted: number;
+  updated: number;
+  errors: { row: number; message: string }[];
+  actions: { row: number; action: "insert" | "update" }[];
+}
+
+/** Rows read from images by the AI, before review. */
+export interface EmployeeExtractResponse {
+  provider: string;
+  model: string;
+  rows: { source: string; values: EmployeeInput }[];
+}
+
+/** Formats a DATE column (stored as midnight UTC) without shifting it into the previous day. */
+export function formatDate(value: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString(undefined, { dateStyle: "medium", timeZone: "UTC" });
+}
+
+/** "YYYY-MM-DD" for <input type="date"> from a DATE column. */
+export function toDateInput(value: string | null) {
+  return value ? value.slice(0, 10) : "";
 }

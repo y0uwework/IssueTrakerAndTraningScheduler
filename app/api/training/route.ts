@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
         ? recordsQuery(whereSql, orderSql)
         : `
       SELECT s.Id, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status, s.CreatedAt, s.UpdatedAt,
-             (SELECT STRING_AGG(t.TrainerName, N', ') WITHIN GROUP (ORDER BY t.TrainerName)
+             (SELECT STRING_AGG(t.TrainerName + N' (' + t.App + N')', N', ') WITHIN GROUP (ORDER BY t.App DESC, t.TrainerName)
               FROM dbo.TrainingSessionTrainers t WHERE t.SessionId = s.Id) AS Trainers,
              (SELECT STRING_AGG(x.App, N', ') WITHIN GROUP (ORDER BY x.App)
               FROM (SELECT DISTINCT a.App FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) x) AS Apps,
              (SELECT COUNT(*) FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) AS AttendeeCount,
-             (SELECT COUNT(*) FROM (SELECT DISTINCT a.EmployeeName, a.EmployeeCode FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) e) AS EmployeeCount,
+             (SELECT COUNT(DISTINCT a.EmployeeId) FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) AS EmployeeCount,
              (SELECT COUNT(*) FROM dbo.TrainingImages im WHERE im.SessionId = s.Id) AS ImageCount
       FROM dbo.TrainingSessions s
       ${whereSql}
@@ -39,31 +39,18 @@ export async function GET(request: NextRequest) {
              COALESCE(SUM(CASE WHEN Status = N'Completed' THEN 1 ELSE 0 END), 0) AS completed
       FROM dbo.TrainingSessions;
 
-      SELECT COUNT(*) AS employeesTrained
-      FROM (SELECT DISTINCT a.EmployeeName, a.EmployeeCode
-            FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
-            WHERE s.Status = N'Completed') e;
+      SELECT COUNT(DISTINCT a.EmployeeId) AS employeesTrained
+      FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
+      WHERE s.Status = N'Completed';
 
       SELECT DISTINCT TrainerName FROM dbo.TrainingSessionTrainers ORDER BY TrainerName;
-
-      -- Latest code/department seen for each employee, used to autofill the form.
-      SELECT EmployeeName, EmployeeCode, Department
-      FROM (SELECT EmployeeName, EmployeeCode, Department,
-                   ROW_NUMBER() OVER (PARTITION BY EmployeeName ORDER BY AttendeeId DESC) AS rn
-            FROM dbo.TrainingAttendees) x
-      WHERE rn = 1
-      ORDER BY EmployeeName;
-
-      SELECT DISTINCT Department FROM dbo.TrainingAttendees WHERE Department IS NOT NULL ORDER BY Department;
     `);
 
-    const [list, stats, trained, trainers, employees, departments] = result.recordsets as Record<string, unknown>[][];
+    const [list, stats, trained, trainers] = result.recordsets as Record<string, unknown>[][];
     const body: TrainingListResponse = {
       [view]: list,
       stats: { ...stats[0], employeesTrained: trained[0].employeesTrained } as TrainingListResponse["stats"],
       trainers: trainers.map((r) => r.TrainerName as string),
-      employees: employees as unknown as TrainingListResponse["employees"],
-      departments: departments.map((r) => r.Department as string),
     };
     return NextResponse.json(body);
   } catch (err) {
@@ -71,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/training  (multipart/form-data: session fields, "trainers" + "attendees" JSON, "images" files)
+// POST /api/training  (multipart/form-data: session fields, "trainers" [{app, name}] + "attendees" [{employeeId, app, trainers}] JSON, "images" files)
 export async function POST(request: NextRequest) {
   let saved: SavedImage[] = [];
   try {

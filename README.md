@@ -128,14 +128,25 @@ For a faster production build: `npm run build`, then `npm start` (also localhost
 6. **Export:** apply some filters and click **Export Excel**. The `.xlsx` contains only the issues currently shown, in the same order, with screenshot thumbnails in the last column (**Screenshots**). WebP screenshots are converted to PNG thumbnails because Excel can't embed WebP.
 7. **Delete:** click the trash icon and confirm. The issue, its image rows, and its files in `uploads\` are all removed.
 
+## New Joiners module
+
+Open **New Joiners** in the top bar (`/employees`). It stores every column of the HR joining sheet: Date of Creation, Unit, Display Name, Level, User Email ID, Date of Joining, Designation, Base Location, Department, Reporting To, Mobile Personal, Mobile Official, System Requirement, Correspondence Address and Status.
+
+- **Import Excel** reads the sheet as HR keeps it. Columns are matched by header text (any order; S.No and unknown columns are ignored), and dates like `01.08.2026` / `03-08-2026` and hyperlinked emails work as they are. Employees are matched by email (or by name + joining date when there is no email), so re-importing updates instead of duplicating. Rows with problems are skipped and listed with their row number. Only `.xlsx` is supported.
+- **Import from Image** reads the sheet from a screenshot or photo (up to 5 images) with an AI vision model, then shows the rows in an editable table marked *New* / *Update* / *Fix*. Nothing is saved until you click **Save**, which uses the same checks and email matching as the Excel import. Setup: put `OPENAI_API_KEY` or `GEMINI_API_KEY` in `.env.local` and restart (optional `AI_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`; see `.env.local.example`). The images are sent to that provider and are not stored by the app. Always compare emails and mobile numbers with the image before saving.
+- **Export Excel** downloads the filtered list in the same layout (plus HRMS/CRM training columns), and it can be re-imported. The import dialog also offers a blank template.
+- Each employee shows **HRMS** and **CRM** training status: *Pending*, *Scheduled* (in a scheduled session) or *Trained* (in a completed session). Filter by "Training pending", "HRMS not trained", "CRM not trained" or "Fully trained".
+- An employee who is already in a training session can't be deleted; set them to *Inactive* instead.
+
 ## Training Records module
 
-Open **Training Records** in the top bar (`/training-records`). It tracks HRMS and CRM training for new joiners.
+Open **Training Records** in the top bar (`/training-records`). It schedules HRMS and CRM training for new joiners.
 
-- A **training session** has a title, start/end date and time, training mode (**Face to face** with an optional venue, or **Online** with a required meeting link), status (*Scheduled*, *Completed*, *Cancelled*), notes, one or more **trainers**, and screenshots.
-- You can add many employees to one session, either one at a time or by pasting a list (`Name, Code, Department` per line, which also works when pasted from Excel). Choose **HRMS**, **CRM** or **Both** when adding. Each employee/app row records **which trainer(s) trained that person**: tick the trainer chips on the row, or use the "*Trainer*: all" buttons in the column header.
-- The **Employee Records** tab lists one row per employee per app (who was trained, on which app, by whom, and when). Filter it by app, status, trainer or date range. **Export Excel** downloads that list plus a *Sessions* sheet.
-- Tables: `TrainingSessions`, `TrainingSessionTrainers`, `TrainingAttendees`, `TrainingAttendeeTrainers`, `TrainingImages` (all in `database/schema.sql`. Re-running the script adds them to an existing database without touching issues). Requires SQL Server 2017 or later (`STRING_AGG`).
+- A **training session** has a title, start/end date and time, training mode (**Face to face** with an optional venue, or **Online** with a required meeting link), status (*Scheduled*, *Completed*, *Cancelled*), notes, and screenshots.
+- **Trainers are assigned per app**: a session has its own list of HRMS trainers and CRM trainers.
+- New joiners are picked from the New Joiners list (by default only those not yet trained on the chosen app). Tick several, choose **HRMS**, **CRM** or **Both**, and click **Add selected**. Each employee/app row records **which of that app's trainers trained them**.
+- The **Employee Records** tab lists one row per employee per app (who was trained, on which app, by whom, and when). Filter it by app, status, trainer or date range. **Export Excel** downloads that list with the employee details, plus a *Sessions* sheet.
+- Tables: `Employees`, `TrainingSessions`, `TrainingSessionTrainers`, `TrainingAttendees`, `TrainingAttendeeTrainers`, `TrainingImages` (all in `database/schema.sql`. Re-running the script adds them to an existing database without touching issues). Requires SQL Server 2017 or later (`STRING_AGG`).
 - Screenshots use the same `uploads\` folder and validation as issues, and are served by `/api/training/images/<ImageId>`.
 
 ## How uploads work

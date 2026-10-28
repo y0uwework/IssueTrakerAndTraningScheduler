@@ -61,6 +61,45 @@ BEGIN
 END
 GO
 
+/* ---------------- New Joiners (employees) ---------------- */
+
+-- The filtered unique index below needs these settings (sqlcmd turns QUOTED_IDENTIFIER off by default).
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
+-- Columns follow the HR new-joiner sheet.
+IF OBJECT_ID(N'dbo.Employees', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Employees (
+        Id                    INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Employees PRIMARY KEY,
+        CreationDate          DATE              NULL,
+        Unit                  NVARCHAR(50)      NULL,
+        DisplayName           NVARCHAR(100)     NOT NULL,
+        EmployeeLevel         NVARCHAR(30)      NULL,
+        Email                 NVARCHAR(200)     NULL,
+        DateOfJoining         DATE              NULL,
+        Designation           NVARCHAR(100)     NULL,
+        BaseLocation          NVARCHAR(200)     NULL,
+        Department            NVARCHAR(100)     NULL,
+        ReportingTo           NVARCHAR(100)     NULL,
+        MobilePersonal        NVARCHAR(20)      NULL,
+        MobileOfficial        NVARCHAR(20)      NULL,
+        SystemRequirement     NVARCHAR(100)     NULL,
+        CorrespondenceAddress NVARCHAR(500)     NULL,
+        Status                NVARCHAR(20)      NOT NULL CONSTRAINT DF_Employees_Status DEFAULT N'Active',
+        CreatedAt             DATETIME2         NOT NULL CONSTRAINT DF_Employees_CreatedAt DEFAULT SYSUTCDATETIME(),
+        UpdatedAt             DATETIME2         NOT NULL CONSTRAINT DF_Employees_UpdatedAt DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT CK_Employees_DisplayName CHECK (LEN(LTRIM(RTRIM(DisplayName))) > 0),
+        CONSTRAINT CK_Employees_Status CHECK (Status IN (N'Active', N'Inactive'))
+    );
+
+    -- Email is optional but must be unique when present (the Excel import matches on it).
+    CREATE UNIQUE INDEX UX_Employees_Email ON dbo.Employees (Email) WHERE Email IS NOT NULL;
+    CREATE INDEX IX_Employees_DateOfJoining ON dbo.Employees (DateOfJoining);
+END
+GO
+
 /* ---------------- Training Records ---------------- */
 
 IF OBJECT_ID(N'dbo.TrainingSessions', N'U') IS NULL
@@ -101,35 +140,39 @@ BEGIN
 END
 GO
 
+-- Trainers are assigned per app: a session can have different trainers for HRMS and CRM.
 IF OBJECT_ID(N'dbo.TrainingSessionTrainers', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.TrainingSessionTrainers (
         SessionId   INT           NOT NULL,
+        App         NVARCHAR(20)  NOT NULL,
         TrainerName NVARCHAR(100) NOT NULL,
-        CONSTRAINT PK_TrainingSessionTrainers PRIMARY KEY (SessionId, TrainerName),
+        CONSTRAINT PK_TrainingSessionTrainers PRIMARY KEY (SessionId, App, TrainerName),
+        CONSTRAINT CK_TrainingSessionTrainers_App CHECK (App IN (N'HRMS', N'CRM')),
         CONSTRAINT FK_TrainingSessionTrainers_Sessions FOREIGN KEY (SessionId)
             REFERENCES dbo.TrainingSessions (Id) ON DELETE CASCADE
     );
 END
 GO
 
--- One row per employee per app trained in a session.
+-- One row per new joiner per app trained in a session.
 IF OBJECT_ID(N'dbo.TrainingAttendees', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.TrainingAttendees (
-        AttendeeId   INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingAttendees PRIMARY KEY,
-        SessionId    INT               NOT NULL,
-        EmployeeName NVARCHAR(100)     NOT NULL,
-        EmployeeCode NVARCHAR(50)      NULL,
-        Department   NVARCHAR(100)     NULL,
-        App          NVARCHAR(20)      NOT NULL,
+        AttendeeId INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingAttendees PRIMARY KEY,
+        SessionId  INT               NOT NULL,
+        EmployeeId INT               NOT NULL,
+        App        NVARCHAR(20)      NOT NULL,
         CONSTRAINT CK_TrainingAttendees_App CHECK (App IN (N'HRMS', N'CRM')),
+        CONSTRAINT UQ_TrainingAttendees UNIQUE (SessionId, EmployeeId, App),
         CONSTRAINT FK_TrainingAttendees_Sessions FOREIGN KEY (SessionId)
-            REFERENCES dbo.TrainingSessions (Id) ON DELETE CASCADE
+            REFERENCES dbo.TrainingSessions (Id) ON DELETE CASCADE,
+        -- No cascade: an employee with training records cannot be deleted (mark them Inactive instead).
+        CONSTRAINT FK_TrainingAttendees_Employees FOREIGN KEY (EmployeeId)
+            REFERENCES dbo.Employees (Id)
     );
 
-    CREATE INDEX IX_TrainingAttendees_SessionId ON dbo.TrainingAttendees (SessionId);
-    CREATE INDEX IX_TrainingAttendees_EmployeeName ON dbo.TrainingAttendees (EmployeeName);
+    CREATE INDEX IX_TrainingAttendees_EmployeeId ON dbo.TrainingAttendees (EmployeeId);
 END
 GO
 

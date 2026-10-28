@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bug, GraduationCap } from "lucide-react";
+import { Bug, GraduationCap, Users } from "lucide-react";
 
 const LINKS = [
   { href: "/", label: "Issues", icon: Bug },
+  { href: "/employees", label: "New Joiners", icon: Users },
   { href: "/training-records", label: "Training Records", icon: GraduationCap },
 ];
 

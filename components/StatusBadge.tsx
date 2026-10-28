@@ -1,4 +1,4 @@
-import type { App, Priority, Status, TrainingStatus } from "@/lib/types";
+import type { App, AppTrainingState, Priority, Status, TrainingStatus } from "@/lib/types";
 
 const APP_STYLES: Record<App, string> = {
   HRMS: "bg-violet-50 text-violet-700 ring-violet-600/20",
@@ -59,6 +59,24 @@ export function TrainingStatusBadge({ status }: { status: TrainingStatus }) {
   return (
     <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TRAINING_STATUS_STYLES[status]}`}>
       {status}
+    </span>
+  );
+}
+
+const TRAINING_STATE_STYLES: Record<AppTrainingState, string> = {
+  Pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  Scheduled: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  Trained: "bg-green-50 text-green-700 ring-green-600/20",
+};
+
+/** A new joiner's training state for one app, e.g. "CRM · Trained". */
+export function AppTrainingBadge({ app, state }: { app: App; state: AppTrainingState }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TRAINING_STATE_STYLES[state]}`}
+      title={`${app} training: ${state}`}
+    >
+      <span className="font-semibold">{app}</span> {state}
     </span>
   );
 }

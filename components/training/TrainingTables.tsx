@@ -3,7 +3,7 @@
 import { ExternalLink, Eye, GraduationCap, Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { AppBadge, TrainingStatusBadge } from "../StatusBadge";
 import { ModeLabel } from "./TrainingDetails";
-import { formatDateTime, type App, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
+import { formatDate, formatDateTime, type App, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
 
 const dash = <span className="text-slate-300">—</span>;
 const th = "px-4 py-2.5 font-medium";
@@ -137,8 +137,8 @@ export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]
         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
           <tr>
             <th className={th}>Employee</th>
-            <th className={th}>Code</th>
-            <th className={th}>Department</th>
+            <th className={th}>Designation / Department</th>
+            <th className={th}>Joined</th>
             <th className={th}>App</th>
             <th className={th}>Trained By</th>
             <th className={th}>Date &amp; Time</th>
@@ -149,9 +149,21 @@ export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]
         <tbody className="divide-y divide-slate-100">
           {records.map((r) => (
             <tr key={r.AttendeeId} className="hover:bg-slate-50">
-              <td className="px-4 py-3 font-medium text-slate-900">{r.EmployeeName}</td>
-              <td className="px-4 py-3 text-slate-600">{r.EmployeeCode || dash}</td>
-              <td className="px-4 py-3 text-slate-600">{r.Department || dash}</td>
+              <td className="px-4 py-3">
+                <p className="font-medium text-slate-900">{r.DisplayName}</p>
+                {r.Email && <p className="text-xs text-slate-500">{r.Email}</p>}
+              </td>
+              <td className="px-4 py-3 text-slate-600">
+                {r.Designation || r.Department ? (
+                  <>
+                    <p>{r.Designation || dash}</p>
+                    <p className="text-xs text-slate-500">{[r.Department, r.Unit].filter(Boolean).join(" · ")}</p>
+                  </>
+                ) : (
+                  dash
+                )}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{formatDate(r.DateOfJoining)}</td>
               <td className="px-4 py-3">
                 <AppBadge app={r.App} />
               </td>

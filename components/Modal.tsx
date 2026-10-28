@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "lg" | "xl";
+  size?: "sm" | "lg" | "xl" | "full";
 }
 
 export default function Modal({ title, onClose, children, footer, size = "lg" }: ModalProps) {
@@ -32,7 +32,7 @@ export default function Modal({ title, onClose, children, footer, size = "lg" }:
         role="dialog"
         aria-modal="true"
         className={`my-8 flex max-h-[calc(100vh-4rem)] w-full flex-col rounded-lg border border-slate-200 bg-white shadow-xl ${
-          size === "sm" ? "max-w-md" : size === "xl" ? "max-w-4xl" : "max-w-2xl"
+          { sm: "max-w-md", lg: "max-w-2xl", xl: "max-w-4xl", full: "max-w-7xl" }[size]
         }`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">

@@ -58,10 +58,10 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
     ["Last Updated", formatDateTime(session.UpdatedAt)],
   ];
 
-  // Who trained whom: each trainer with the employees they trained, per app.
-  const byTrainer = session.trainers.map((trainer) => ({
-    trainer,
-    trained: session.attendees.filter((a) => a.Trainers.includes(trainer)),
+  // Who trained whom: each app's trainers with the employees they trained on that app.
+  const byTrainer = session.trainers.map((t) => ({
+    ...t,
+    trained: session.attendees.filter((a) => a.App === t.App && a.Trainers.includes(t.TrainerName)),
   }));
 
   return (
@@ -100,18 +100,13 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
         <div className="mt-5">
           <h4 className={heading}>Trainers ({session.trainers.length})</h4>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {byTrainer.map(({ trainer, trained }) => (
-              <div key={trainer} className="rounded-md border border-slate-200 px-3 py-2">
-                <p className="text-sm font-medium text-slate-900">{trainer}</p>
+            {byTrainer.map(({ App, TrainerName, trained }) => (
+              <div key={`${App}|${TrainerName}`} className="rounded-md border border-slate-200 px-3 py-2">
+                <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                  {TrainerName} <AppBadge app={App} />
+                </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {trained.length === 0
-                    ? "No employees assigned"
-                    : trained.map((a, i) => (
-                        <span key={i}>
-                          {i > 0 && ", "}
-                          {a.EmployeeName} <span className="text-slate-400">({a.App})</span>
-                        </span>
-                      ))}
+                  {trained.length === 0 ? "No employees assigned" : `Trained ${trained.map((a) => a.DisplayName).join(", ")}`}
                 </p>
               </div>
             ))}
@@ -119,7 +114,7 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
         </div>
 
         <div className="mt-5">
-          <h4 className={heading}>Employees trained ({session.attendees.length})</h4>
+          <h4 className={heading}>New joiners trained ({session.attendees.length})</h4>
           {session.attendees.length === 0 ? (
             <p className="mt-1.5 text-sm text-slate-400 italic">No employees added yet.</p>
           ) : (
@@ -128,7 +123,7 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-medium">Employee</th>
-                    <th className="px-3 py-2 font-medium">Code</th>
+                    <th className="px-3 py-2 font-medium">Designation</th>
                     <th className="px-3 py-2 font-medium">Department</th>
                     <th className="px-3 py-2 font-medium">App</th>
                     <th className="px-3 py-2 font-medium">Trained by</th>
@@ -137,8 +132,11 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
                 <tbody className="divide-y divide-slate-100">
                   {session.attendees.map((a, i) => (
                     <tr key={i}>
-                      <td className="px-3 py-2 font-medium text-slate-800">{a.EmployeeName}</td>
-                      <td className="px-3 py-2 text-slate-600">{a.EmployeeCode || <span className="text-slate-300">—</span>}</td>
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-slate-800">{a.DisplayName}</p>
+                        {a.Email && <p className="text-xs text-slate-500">{a.Email}</p>}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">{a.Designation || <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-2 text-slate-600">{a.Department || <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-2">
                         <AppBadge app={a.App} />
