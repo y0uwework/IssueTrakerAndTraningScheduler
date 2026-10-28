@@ -1,0 +1,113 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { errorResponse, handleError } from "@/lib/api";
+import { addSessionInputs, buildTrainingFilter, insertTrainingImageRows, parseSessionFields, recordsQuery, writeSessionPeople } from "@/lib/training";
+import { deleteImageFiles, saveImages, validateImages, type SavedImage } from "@/lib/uploads";
+import type { TrainingListResponse } from "@/lib/types";
+
+// GET /api/training?view=sessions|records&search=&app=&status=&trainer=&from=&to=&sort=newest|oldest
+export async function GET(request: NextRequest) {
+  try {
+    const { sql, pool } = await getDb();
+    const req = pool.request();
+    const params = request.nextUrl.searchParams;
+    const view = params.get("view") === "records" ? "records" : "sessions";
+    const { whereSql, orderSql } = buildTrainingFilter(sql, req, params, view === "records" ? "attendee" : "session");
+
+    const listSql =
+      view === "records"
+        ? recordsQuery(whereSql, orderSql)
+        : `
+      SELECT s.Id, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status, s.CreatedAt, s.UpdatedAt,
+             (SELECT STRING_AGG(t.TrainerName, N', ') WITHIN GROUP (ORDER BY t.TrainerName)
+              FROM dbo.TrainingSessionTrainers t WHERE t.SessionId = s.Id) AS Trainers,
+             (SELECT STRING_AGG(x.App, N', ') WITHIN GROUP (ORDER BY x.App)
+              FROM (SELECT DISTINCT a.App FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) x) AS Apps,
+             (SELECT COUNT(*) FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) AS AttendeeCount,
+             (SELECT COUNT(*) FROM (SELECT DISTINCT a.EmployeeName, a.EmployeeCode FROM dbo.TrainingAttendees a WHERE a.SessionId = s.Id) e) AS EmployeeCount,
+             (SELECT COUNT(*) FROM dbo.TrainingImages im WHERE im.SessionId = s.Id) AS ImageCount
+      FROM dbo.TrainingSessions s
+      ${whereSql}
+      ${orderSql};
+    `;
+
+    const result = await req.query(`
+      ${listSql}
+
+      SELECT COUNT(*) AS total,
+             COALESCE(SUM(CASE WHEN Status = N'Scheduled' AND StartAt >= SYSUTCDATETIME() THEN 1 ELSE 0 END), 0) AS upcoming,
+             COALESCE(SUM(CASE WHEN Status = N'Completed' THEN 1 ELSE 0 END), 0) AS completed
+      FROM dbo.TrainingSessions;
+
+      SELECT COUNT(*) AS employeesTrained
+      FROM (SELECT DISTINCT a.EmployeeName, a.EmployeeCode
+            FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
+            WHERE s.Status = N'Completed') e;
+
+      SELECT DISTINCT TrainerName FROM dbo.TrainingSessionTrainers ORDER BY TrainerName;
+
+      -- Latest code/department seen for each employee, used to autofill the form.
+      SELECT EmployeeName, EmployeeCode, Department
+      FROM (SELECT EmployeeName, EmployeeCode, Department,
+                   ROW_NUMBER() OVER (PARTITION BY EmployeeName ORDER BY AttendeeId DESC) AS rn
+            FROM dbo.TrainingAttendees) x
+      WHERE rn = 1
+      ORDER BY EmployeeName;
+
+      SELECT DISTINCT Department FROM dbo.TrainingAttendees WHERE Department IS NOT NULL ORDER BY Department;
+    `);
+
+    const [list, stats, trained, trainers, employees, departments] = result.recordsets as Record<string, unknown>[][];
+    const body: TrainingListResponse = {
+      [view]: list,
+      stats: { ...stats[0], employeesTrained: trained[0].employeesTrained } as TrainingListResponse["stats"],
+      trainers: trainers.map((r) => r.TrainerName as string),
+      employees: employees as unknown as TrainingListResponse["employees"],
+      departments: departments.map((r) => r.Department as string),
+    };
+    return NextResponse.json(body);
+  } catch (err) {
+    return handleError(err, "load training records");
+  }
+}
+
+// POST /api/training  (multipart/form-data: session fields, "trainers" + "attendees" JSON, "images" files)
+export async function POST(request: NextRequest) {
+  let saved: SavedImage[] = [];
+  try {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return errorResponse("Request must be multipart/form-data.", 400);
+    }
+
+    const fields = parseSessionFields(form);
+    const images = await validateImages(form.getAll("images"));
+
+    const { sql, pool } = await getDb();
+    saved = await saveImages(images);
+
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const inserted = await addSessionInputs(sql, new sql.Request(tx), fields).query(`
+        INSERT INTO dbo.TrainingSessions (Title, StartAt, EndAt, Mode, Location, MeetingLink, Status, Notes)
+        OUTPUT INSERTED.Id
+        VALUES (@Title, @StartAt, @EndAt, @Mode, @Location, @MeetingLink, @Status, @Notes)
+      `);
+      const id = inserted.recordset[0].Id as number;
+      await writeSessionPeople(sql, tx, id, fields);
+      await insertTrainingImageRows(sql, tx, id, saved);
+      await tx.commit();
+      return NextResponse.json({ id }, { status: 201 });
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
+  } catch (err) {
+    // Nothing was committed, so remove any files written for this request.
+    await deleteImageFiles(saved.map((s) => s.relativePath));
+    return handleError(err, "create training session");
+  }
+}
