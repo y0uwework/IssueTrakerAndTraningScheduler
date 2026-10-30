@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bug, GraduationCap, Users } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const LINKS = [
   { href: "/", label: "Issues", icon: Bug },
@@ -13,8 +14,10 @@ const LINKS = [
 export default function AppNav() {
   const pathname = usePathname();
   return (
-    <nav className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex justify-center overflow-y-hidden gap-1 overflow-x-auto  w-full">
+    <nav className="flex items-center border-b border-slate-200 bg-surface px-2">
+      {/* Spacer matching the toggle so the links stay centered */}
+      <div className="w-8 shrink-0" aria-hidden />
+      <div className="mx-auto flex min-w-0 flex-1 justify-center overflow-y-hidden gap-1 overflow-x-auto">
         {LINKS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
@@ -30,6 +33,9 @@ export default function AppNav() {
             </Link>
           );
         })}
+      </div>
+      <div className="shrink-0">
+        <ThemeToggle />
       </div>
     </nav>
   );

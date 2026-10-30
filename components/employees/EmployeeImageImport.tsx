@@ -274,12 +274,12 @@ export default function EmployeeImageImport({ onClose, onImported }: EmployeeIma
                 <div key={i.key} className="relative overflow-hidden rounded-md border border-slate-200 bg-slate-50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={i.previewUrl} alt={i.file.name} className="h-28 w-full object-contain" />
-                  <p className="truncate border-t border-slate-200 bg-white px-2 py-1 text-xs">{i.file.name}</p>
+                  <p className="truncate border-t border-slate-200 bg-surface px-2 py-1 text-xs">{i.file.name}</p>
                   <button
                     type="button"
                     onClick={() => removeImage(i.key)}
                     disabled={!!busy}
-                    className="absolute top-1 right-1 rounded-full bg-white/90 p-1 text-slate-700 shadow-sm hover:text-red-600"
+                    className="absolute top-1 right-1 rounded-full bg-surface/90 p-1 text-slate-700 shadow-sm hover:text-red-600"
                     aria-label={`Remove ${i.file.name}`}
                   >
                     <X size={14} />

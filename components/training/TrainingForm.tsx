@@ -272,7 +272,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
             <span className="label">
               Training mode <span className="text-red-600">*</span>
             </span>
-            <div className="grid grid-cols-2 overflow-hidden rounded-md border border-slate-300 bg-white text-sm font-medium" role="radiogroup" aria-label="Training mode">
+            <div className="grid grid-cols-2 overflow-hidden rounded-md border border-slate-300 bg-surface text-sm font-medium" role="radiogroup" aria-label="Training mode">
               {TRAINING_MODES.map((m) => (
                 <button
                   key={m}
@@ -430,7 +430,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
 
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 p-2">
               <span className="text-xs text-slate-500">Train on</span>
-              <div className="inline-flex overflow-hidden rounded-md border border-slate-300 bg-white text-xs font-medium" role="group" aria-label="App">
+              <div className="inline-flex overflow-hidden rounded-md border border-slate-300 bg-surface text-xs font-medium" role="group" aria-label="App">
                 {([...APPS, "Both"] as AppChoice[]).map((a) => (
                   <button
                     key={a}
@@ -482,7 +482,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
                                 onClick={() => toggleRowTrainer(r.key, t)}
                                 aria-pressed={on}
                                 className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                                  on ? "bg-indigo-600 text-white ring-indigo-600" : "bg-white text-slate-500 ring-slate-300 hover:ring-indigo-400"
+                                  on ? "bg-indigo-600 text-white ring-indigo-600" : "bg-surface text-slate-500 ring-slate-300 hover:ring-indigo-400"
                                 }`}
                               >
                                 {t}

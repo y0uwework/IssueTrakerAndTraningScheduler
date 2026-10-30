@@ -25,13 +25,13 @@ export default function Modal({ title, onClose, children, footer, size = "lg" }:
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className={`my-8 flex max-h-[calc(100vh-4rem)] w-full flex-col rounded-lg border border-slate-200 bg-white shadow-xl ${
+        className={`my-8 flex max-h-[calc(100vh-4rem)] w-full flex-col rounded-lg border border-slate-200 bg-surface shadow-xl ${
           { sm: "max-w-md", lg: "max-w-2xl", xl: "max-w-4xl", full: "max-w-7xl" }[size]
         }`}
       >

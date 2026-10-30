@@ -90,7 +90,7 @@ export default function ScreenshotPicker({ existing, srcFor, pending, setPending
                   type="button"
                   onClick={() => toggleExisting(img.ImageId)}
                   disabled={saving}
-                  className="absolute top-1 right-1 rounded-full bg-white/90 p-1 text-slate-700 shadow-sm hover:bg-white hover:text-red-600"
+                  className="absolute top-1 right-1 rounded-full bg-surface/90 p-1 text-slate-700 shadow-sm hover:bg-surface hover:text-red-600"
                   aria-label={removed ? "Keep image" : "Remove image"}
                   title={removed ? "Keep image" : "Remove image"}
                 >
@@ -108,7 +108,7 @@ export default function ScreenshotPicker({ existing, srcFor, pending, setPending
                 type="button"
                 onClick={() => removePending(p.key)}
                 disabled={saving}
-                className="absolute top-1 right-1 rounded-full bg-white/90 p-1 text-slate-700 shadow-sm hover:bg-white hover:text-red-600"
+                className="absolute top-1 right-1 rounded-full bg-surface/90 p-1 text-slate-700 shadow-sm hover:bg-surface hover:text-red-600"
                 aria-label="Remove image"
                 title="Remove image"
               >

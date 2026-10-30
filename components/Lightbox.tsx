@@ -32,16 +32,16 @@ export default function Lightbox({ images, srcFor, index, onChange, onClose }: L
   }, [index, images.length, multiple, onChange, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/90" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="flex items-center justify-between px-4 py-3 text-sm text-slate-200">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="flex items-center justify-between px-4 py-3 text-sm text-white/85">
         <span className="truncate">
-          {img.OriginalFileName} {multiple && <span className="text-slate-400">· {index + 1} / {images.length}</span>}
+          {img.OriginalFileName} {multiple && <span className="text-white/55">· {index + 1} / {images.length}</span>}
         </span>
         <div className="flex items-center gap-1">
-          <a href={srcFor(img.ImageId)} target="_blank" rel="noreferrer" className="rounded-md px-2 py-1 text-slate-300 hover:bg-white/10 hover:text-white">
+          <a href={srcFor(img.ImageId)} target="_blank" rel="noreferrer" className="rounded-md px-2 py-1 text-white/75 hover:bg-white/10 hover:text-white">
             Open original
           </a>
-          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Close">
+          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-white/75 hover:bg-white/10 hover:text-white" aria-label="Close">
             <X size={20} />
           </button>
         </div>
@@ -66,7 +66,7 @@ export default function Lightbox({ images, srcFor, index, onChange, onClose }: L
 
 /** Thumbnail grid that opens the lightbox on click. */
 export function ScreenshotGallery({ images, srcFor, onOpen }: { images: IssueImage[]; srcFor: (imageId: number) => string; onOpen: (i: number) => void }) {
-  if (images.length === 0) return <p className="mt-1.5 text-sm text-slate-400 italic">No screenshots attached.</p>;
+  if (images.length === 0) return <p className="mt-1.5 text-sm text-white/55 italic">No screenshots attached.</p>;
   return (
     <div className="mt-2 grid grid-cols-3 gap-3 sm:grid-cols-4">
       {images.map((img, i) => (

@@ -177,7 +177,7 @@ export default function TrainingRecords() {
 
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-xs">
+          <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-surface p-4 shadow-xs">
             <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${color}`}>
               <Icon size={18} />
             </div>
@@ -202,7 +202,7 @@ export default function TrainingRecords() {
         </div>
       )}
 
-      <section className="mt-4 rounded-lg border border-slate-200 bg-white shadow-xs">
+      <section className="mt-4 rounded-lg border border-slate-200 bg-surface shadow-xs">
         <div className="flex gap-1 border-b border-slate-200 px-3 pt-2" role="tablist">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
@@ -339,7 +339,7 @@ export default function TrainingRecords() {
       )}
 
       {toast && (
-        <div role="status" className="fixed right-4 bottom-4 z-50 flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
+        <div role="status" className="fixed right-4 bottom-4 z-50 flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm text-slate-50 shadow-lg">
           <CheckCircle2 size={16} className="text-green-400" /> {toast}
         </div>
       )}
