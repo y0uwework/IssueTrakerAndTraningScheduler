@@ -121,7 +121,12 @@ async function post(url: string, headers: Record<string, string>, body: unknown,
     });
   } catch (err) {
     if ((err as Error).name === "TimeoutError") throw new ExtractError("The AI service took too long to answer. Try again, or use a smaller/clearer image.", 504);
-    throw new ExtractError(`Could not reach the ${provider === "openai" ? "OpenAI" : "Gemini"} API. Check this PC's internet connection.`, 502);
+    // fetch hides the real reason (DNS, refused connection, proxy, certificate) in err.cause.
+    const cause = (err as Error & { cause?: { code?: string; message?: string } }).cause;
+    const reason = cause?.code || cause?.message || (err as Error).message;
+    const host = new URL(url).host;
+    console.error(`${provider} request to ${host} failed:`, err);
+    throw new ExtractError(`Could not reach the ${provider === "openai" ? "OpenAI" : "Gemini"} API at ${host} (${reason}). Check the internet connection, proxy/firewall, and any *_BASE_URL setting.`, 502);
   }
 
   const data = await res.json().catch(() => ({}));
