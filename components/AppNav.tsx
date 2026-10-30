@@ -14,7 +14,7 @@ export default function AppNav() {
   const pathname = usePathname();
   return (
     <nav className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex justify-center overflow-y-hidden gap-1 overflow-x-auto  w-full">
         {LINKS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (

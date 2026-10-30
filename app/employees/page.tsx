@@ -151,7 +151,7 @@ export default function NewJoiners() {
   ];
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">New Joiners</h1>
@@ -301,7 +301,7 @@ export default function NewJoiners() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1100px] text-left text-sm">
+                <table className="w-full min-w-275 text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
                     <tr>
                       <th className={th}>Employee</th>
@@ -328,12 +328,12 @@ export default function NewJoiners() {
                           <p>{e.Unit || dash}</p>
                           {e.EmployeeLevel && <p className="text-xs text-slate-500">{e.EmployeeLevel}</p>}
                         </td>
-                        <td className="max-w-[14rem] px-4 py-3 text-slate-600">
+                        <td className="max-w-56 px-4 py-3 text-slate-600">
                           <p className="truncate">{e.Designation || dash}</p>
                           {e.Department && <p className="truncate text-xs text-slate-500">{e.Department}</p>}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-slate-600">{formatDate(e.DateOfJoining)}</td>
-                        <td className="max-w-[10rem] truncate px-4 py-3 text-slate-600" title={e.BaseLocation ?? undefined}>
+                        <td className="max-w-40 truncate px-4 py-3 text-slate-600" title={e.BaseLocation ?? undefined}>
                           {e.BaseLocation || dash}
                         </td>
                         <td className="px-4 py-3 text-slate-600">{e.ReportingTo || dash}</td>
