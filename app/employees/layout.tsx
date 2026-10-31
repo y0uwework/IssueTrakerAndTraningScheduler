@@ -1,9 +1,6 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/sidebar-config";
 
-export const metadata: Metadata = {
-  title: "New Joiners",
-  description: "New joiner details from the HR joining sheet, with HRMS and CRM training status.",
-};
+export const metadata = pageMetadata("/employees");
 
 export default function EmployeesLayout({ children }: LayoutProps<"/employees">) {
   return children;

@@ -8,6 +8,7 @@ import EmployeeDetails from "@/components/employees/EmployeeDetails";
 import EmployeeImport from "@/components/employees/EmployeeImport";
 import EmployeeImageImport from "@/components/employees/EmployeeImageImport";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
 import { AppTrainingBadge } from "@/components/StatusBadge";
 import { downloadFile, readJson } from "@/lib/http";
@@ -158,11 +159,7 @@ export default function NewJoiners() {
 
   return (
     <main className="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">New Joiners</h1>
-          <p className="text-sm text-slate-500">Employee details from the HR joining sheet, with their HRMS and CRM training status.</p>
-        </div>
+      <PageHeader href="/employees">
         <div className="flex flex-wrap gap-2 self-start sm:self-auto">
           <button type="button" className="btn-secondary" onClick={() => setImportingImage(true)} title="Read new joiners from a screenshot or photo of the sheet using AI">
             <Sparkles size={16} className="text-violet-600" /> Import from Image
@@ -174,7 +171,7 @@ export default function NewJoiners() {
             <Plus size={16} /> Add New Joiner
           </button>
         </div>
-      </header>
+      </PageHeader>
 
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, color }) => (

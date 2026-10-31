@@ -1,11 +1,9 @@
-import type { Metadata } from "next";
 import AppNav from "@/components/AppNav";
+import { pageMetadata } from "@/lib/sidebar-config";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Issue Tracker",
-  description: "Track, manage, and resolve reported issues.",
-};
+// The root route is the Issues page.
+export const metadata = pageMetadata("/");
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -18,9 +16,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
       </head>
-      <body className="min-h-full">
+      <body className="flex min-h-full">
         <AppNav />
-        {children}
+        <div className="min-w-0 flex-1">{children}</div>
       </body>
     </html>
   );

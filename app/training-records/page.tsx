@@ -7,6 +7,7 @@ import TrainingImport from "@/components/training/TrainingImport";
 import TrainingDetails from "@/components/training/TrainingDetails";
 import { EmptyTraining, RecordsTable, SessionsTable } from "@/components/training/TrainingTables";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
 import { downloadFile, readJson } from "@/lib/http";
 import { APPS, TRAINING_STATUSES, type TrainingListResponse, type TrainingSessionDetail, type TrainingSessionListItem } from "@/lib/types";
@@ -173,11 +174,7 @@ export default function TrainingRecords() {
 
   return (
     <main className="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Training Records</h1>
-          <p className="text-sm text-slate-500">Schedule HRMS and CRM training and record who was trained, by whom.</p>
-        </div>
+      <PageHeader href="/training-records">
         <div className="flex gap-2 self-start sm:self-auto">
           {/* <button type="button" className="btn-secondary" onClick={() => setImporting(true)} title="Import the training sheet kept before this app">
             <Upload size={16} /> Import Old Sheet
@@ -186,7 +183,7 @@ export default function TrainingRecords() {
             <Plus size={16} /> New Session
           </button>
         </div>
-      </header>
+      </PageHeader>
 
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, color }) => (

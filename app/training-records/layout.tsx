@@ -1,9 +1,6 @@
-import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/sidebar-config";
 
-export const metadata: Metadata = {
-  title: "Training Records",
-  description: "Schedule HRMS and CRM training and record who was trained, by whom.",
-};
+export const metadata = pageMetadata("/training-records");
 
 export default function TrainingRecordsLayout({ children }: LayoutProps<"/training-records">) {
   return children;
