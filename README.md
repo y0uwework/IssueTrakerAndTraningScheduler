@@ -27,7 +27,9 @@ issue_traker/
 │   ├── api.ts                         server-only validation and error helpers
 │   ├── uploads.ts                     server-only image validation and storage
 │   └── types.ts                       shared types and constants
-├── database/schema.sql                run this in SSMS first
+├── database/migrations/              schema migrations, applied by `npm run migrate`
+├── database/create-app-login.sql     optional SQL login for the app (run manually)
+├── scripts/migrate.mjs                migration runner
 ├── uploads/                           screenshots are stored here (ignored by git)
 └── .env.local.example
 ```
@@ -61,11 +63,25 @@ When SSMS opens, the **Connect to Server** dialog shows the **Server name**:
 
 You can also run this query in SSMS: `SELECT @@SERVERNAME, SERVERPROPERTY('InstanceName');` (if `InstanceName` is NULL, it's the default instance). Or in PowerShell: `Get-Service MSSQL*`. `MSSQL$SQLEXPRESS` means a named instance called SQLEXPRESS.
 
-### 2. Create the database
+### 2. Create the database (migrations)
 
-1. In SSMS, connect to your server.
-2. **File > Open > File...** and choose `database\schema.sql`.
-3. Press **Execute** (F5). This creates `IssueTrackerDB` with the `Issues` and `IssueImages` tables. You can run it more than once safely.
+The schema lives in `database/migrations/` as numbered `.sql` files. Don't create or alter tables by hand. After you've filled in `.env.local` (steps 3 and 4), run:
+
+```powershell
+npm run migrate
+```
+
+This creates `IssueTrackerDB` if it's missing, then applies every pending migration in order. Each file runs in one transaction and is recorded in `dbo.SchemaMigrations`, so running it again only applies new files. The first three migrations are guarded with `IF ... IS NULL`, so a database created by the old `schema.sql` is just marked as up to date.
+
+| Command | What it does |
+| --- | --- |
+| `npm run migrate` | Apply pending migrations |
+| `npm run migrate:status` | List applied / pending migrations |
+| `npm run migrate:new add_issue_due_date` | Create the next numbered file, e.g. `0004_add_issue_due_date.sql` |
+
+To change the schema, run `npm run migrate:new <name>`, write the SQL (separate batches with a `GO` line, as in SSMS), then run `npm run migrate`. **Never edit a migration that has already been applied.** The runner stops if an applied file's contents change. Add a new migration instead.
+
+Migrations need a login that can create tables. They use `DB_USER` / `DB_PASSWORD` by default. If the app uses a read/write-only login, set `DB_MIGRATE_USER` / `DB_MIGRATE_PASSWORD` in `.env.local` to a login with DDL rights (e.g. `sa`).
 
 ### 3. Choose an authentication method
 
@@ -74,7 +90,7 @@ You can also run this query in SSMS: `SELECT @@SERVERNAME, SERVERPROPERTY('Insta
 The default `mssql` driver (tedious) connects over TCP with a SQL login.
 
 1. Enable mixed mode: in SSMS, right-click the server, then **Properties > Security > SQL Server and Windows Authentication mode**. Then restart the SQL Server service.
-2. Create a login. There's a ready-to-use block at the bottom of `schema.sql` (it creates `issue_tracker_app` with read/write access). Or use `sa`.
+2. Create a login. Run `database/create-app-login.sql` in SSMS (it creates `issue_tracker_app` with read/write access). Or use `sa`.
 3. Make sure **TCP/IP is enabled**: open *SQL Server Configuration Manager*, go to **SQL Server Network Configuration > Protocols for <instance> > TCP/IP = Enabled**, then restart the service. SQL Express ships with TCP/IP disabled.
 
 **Option B: Windows Authentication**
@@ -146,7 +162,7 @@ Open **Training Records** in the top bar (`/training-records`). It schedules HRM
 - **Trainers are assigned per app**: a session has its own list of HRMS trainers and CRM trainers.
 - New joiners are picked from the New Joiners list (by default only those not yet trained on the chosen app). Tick several, choose **HRMS**, **CRM** or **Both**, and click **Add selected**. Each employee/app row records **which of that app's trainers trained them**.
 - The **Employee Records** tab lists one row per employee per app (who was trained, on which app, by whom, and when). Filter it by app, status, trainer or date range. **Export Excel** downloads that list with the employee details, plus a *Sessions* sheet.
-- Tables: `Employees`, `TrainingSessions`, `TrainingSessionTrainers`, `TrainingAttendees`, `TrainingAttendeeTrainers`, `TrainingImages` (all in `database/schema.sql`. Re-running the script adds them to an existing database without touching issues). Requires SQL Server 2017 or later (`STRING_AGG`).
+- Tables: `Employees`, `TrainingSessions`, `TrainingSessionTrainers`, `TrainingAttendees`, `TrainingAttendeeTrainers`, `TrainingImages` (created by the migrations in `database/migrations/`). Requires SQL Server 2017 or later (`STRING_AGG`).
 - Screenshots use the same `uploads\` folder and validation as issues, and are served by `/api/training/images/<ImageId>`.
 
 ## How uploads work
@@ -167,7 +183,7 @@ Open **Training Records** in the top bar (`/training-records`). It schedules HRM
 | `self-signed certificate` / SSL errors | Set `DB_TRUST_SERVER_CERTIFICATE=true`. |
 | `Cannot find module 'msnodesqlv8'` | You set `DB_AUTH=windows` without running `npm install msnodesqlv8`. |
 | `Data source name not found and no default driver specified` | `DB_ODBC_DRIVER` doesn't match an installed ODBC driver name exactly. |
-| `Invalid object name 'dbo.Issues'` | `schema.sql` wasn't run, or `DB_DATABASE` points to a different database. |
+| `Invalid object name 'dbo.Issues'` | Migrations haven't been run (`npm run migrate`), or `DB_DATABASE` points to a different database. |
 | Port 3000 already in use | Find the process with `Get-NetTCPConnection -LocalPort 3000 \| Select OwningProcess`, then `Stop-Process -Id <id>`. |
 | `npm` scripts blocked ("running scripts is disabled") | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or use `npm.cmd run dev`. |
 | `EPERM` / file-locking errors under OneDrive | OneDrive sync can lock files in `.next` or `node_modules`. Pause syncing, or move the project to a folder outside OneDrive, e.g. `C:\dev\issue-tracker`. |

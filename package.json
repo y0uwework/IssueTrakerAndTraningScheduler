@@ -8,7 +8,10 @@
     "build": "next build",
     "start": "next start --hostname localhost --port 3000",
     "start:lan": "node scripts/lan.mjs start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate": "node scripts/migrate.mjs up",
+    "migrate:status": "node scripts/migrate.mjs status",
+    "migrate:new": "node scripts/migrate.mjs new"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
