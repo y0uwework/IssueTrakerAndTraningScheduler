@@ -1,29 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, paging, readPageInfo } from "@/lib/api";
-import { addSessionInputs, buildTrainingFilter, insertTrainingImageRows, parseSessionFields, recordsQuery, writeSessionPeople } from "@/lib/training";
+import {
+  addSessionInputs,
+  buildPendingFilter,
+  buildTrainingFilter,
+  insertTrainingImageRows,
+  parseSessionFields,
+  pendingCountSql,
+  pendingQuery,
+  recordsQuery,
+  writeSessionPeople,
+} from "@/lib/training";
 import { deleteImageFiles, saveImages, validateImages, type SavedImage } from "@/lib/uploads";
 import type { TrainingListResponse } from "@/lib/types";
 
 // GET /api/training?view=sessions|records&search=&app=&status=&trainer=&from=&to=&sort=newest|oldest&page=1
+// GET /api/training?view=pending&search=&app=&state=unscheduled|scheduled&sort=newest|oldest&page=1
 export async function GET(request: NextRequest) {
   try {
     const { sql, pool } = await getDb();
     const req = pool.request();
     const params = request.nextUrl.searchParams;
-    const view = params.get("view") === "records" ? "records" : "sessions";
-    const { whereSql, orderSql } = buildTrainingFilter(sql, req, params, view === "records" ? "attendee" : "session");
+    const viewParam = params.get("view");
+    const view = viewParam === "records" || viewParam === "pending" ? viewParam : "sessions";
+    const { whereSql, orderSql } =
+      view === "pending" ? buildPendingFilter(sql, req, params) : buildTrainingFilter(sql, req, params, view === "records" ? "attendee" : "session");
     const countSql =
-      view === "records"
-        ? `SELECT COUNT(*) FROM dbo.TrainingAttendees a
+      view === "pending"
+        ? pendingCountSql(whereSql)
+        : view === "records"
+          ? `SELECT COUNT(*) FROM dbo.TrainingAttendees a
            JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
            JOIN dbo.Employees e ON e.Id = a.EmployeeId
            ${whereSql}`
-        : `SELECT COUNT(*) FROM dbo.TrainingSessions s ${whereSql}`;
+          : `SELECT COUNT(*) FROM dbo.TrainingSessions s ${whereSql}`;
     const { prelude, pageSql, pageInfoSql } = paging(sql, req, params, countSql);
 
     const listSql =
-      view === "records"
+      view === "pending"
+        ? pendingQuery(whereSql, `${orderSql} ${pageSql}`)
+        : view === "records"
         ? recordsQuery(whereSql, `${orderSql} ${pageSql}`)
         : `
       SELECT s.Id, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status, s.CreatedAt, s.UpdatedAt,
@@ -54,14 +71,16 @@ export async function GET(request: NextRequest) {
       FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
       WHERE s.Status = N'Completed';
 
+      SELECT (${pendingCountSql()}) AS pendingTraining;
+
       ${pageInfoSql}
     `);
 
-    const [list, stats, trained, pageInfo] = result.recordsets as Record<string, unknown>[][];
+    const [list, stats, trained, pending, pageInfo] = result.recordsets as Record<string, unknown>[][];
     const body: TrainingListResponse = {
       ...readPageInfo(pageInfo[0]),
       [view]: list,
-      stats: { ...stats[0], employeesTrained: trained[0].employeesTrained } as TrainingListResponse["stats"],
+      stats: { ...stats[0], employeesTrained: trained[0].employeesTrained, pendingTraining: pending[0].pendingTraining } as TrainingListResponse["stats"],
     };
     return NextResponse.json(body);
   } catch (err) {

@@ -294,6 +294,70 @@ export function buildTrainingFilter(sql: Sql, req: MSSQL.Request, params: URLSea
   };
 }
 
+// An app chosen for the joiner (`r`, employee `e`) with no completed session for it yet.
+// Same rule as "pending" on New Joiners.
+const PENDING_JOIN = `
+  FROM dbo.EmployeeTrainingApps r
+  JOIN dbo.Employees e ON e.Id = r.EmployeeId`;
+const PENDING_WHERE = `
+  WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.TrainingAttendees ca JOIN dbo.TrainingSessions cs ON cs.Id = ca.SessionId
+    WHERE ca.EmployeeId = r.EmployeeId AND ca.App = r.App AND cs.Status = N'Completed'
+  )`;
+
+/** COUNT(*) of pending employee/app pairs; `whereSql` comes from buildPendingFilter (empty = all). */
+export const pendingCountSql = (whereSql = "") => `SELECT COUNT(*) ${PENDING_JOIN} ${PENDING_WHERE} ${whereSql}`;
+
+/**
+ * Pending training (one row per joiner and app still to be trained), filtered by
+ * search, app, state (unscheduled | scheduled) and sort (newest | oldest joining date).
+ * Returns the extra WHERE conditions (to append after PENDING_TRAINING_FROM) and the ORDER BY.
+ */
+export function buildPendingFilter(sql: Sql, req: MSSQL.Request, params: URLSearchParams) {
+  const where: string[] = [];
+
+  const search = params.get("search")?.trim().slice(0, 200);
+  if (search) {
+    req.input("Search", sql.NVarChar(210), likePattern(search));
+    where.push("(e.DisplayName LIKE @Search OR e.Email LIKE @Search OR e.Department LIKE @Search OR e.Designation LIKE @Search OR e.ReportingTo LIKE @Search)");
+  }
+
+  const app = params.get("app");
+  if (app && (APPS as readonly string[]).includes(app)) {
+    req.input("App", sql.NVarChar(20), app);
+    where.push("r.App = @App");
+  }
+
+  const scheduled = `EXISTS (SELECT 1 FROM dbo.TrainingAttendees sa JOIN dbo.TrainingSessions ss ON ss.Id = sa.SessionId
+    WHERE sa.EmployeeId = r.EmployeeId AND sa.App = r.App AND ss.Status = N'Scheduled')`;
+  const state = params.get("state");
+  if (state === "scheduled") where.push(scheduled);
+  else if (state === "unscheduled") where.push(`NOT ${scheduled}`);
+
+  const order = params.get("sort") === "oldest" ? "ASC" : "DESC";
+  return {
+    whereSql: where.map((w) => `AND ${w}`).join(" "),
+    orderSql: `ORDER BY e.DateOfJoining ${order}, e.Id ${order}, r.App`,
+  };
+}
+
+/** Pending rows, with the earliest scheduled session the joiner is already in for that app (if any). */
+export function pendingQuery(whereSql: string, orderSql: string) {
+  return `
+    SELECT e.Id AS EmployeeId, e.DisplayName, e.Email, e.Unit, e.Designation, e.Department, e.DateOfJoining, r.App,
+           nx.SessionId, nx.Title, nx.StartAt
+    ${PENDING_JOIN}
+    OUTER APPLY (
+      SELECT TOP 1 ns.Id AS SessionId, ns.Title, ns.StartAt
+      FROM dbo.TrainingAttendees na JOIN dbo.TrainingSessions ns ON ns.Id = na.SessionId
+      WHERE na.EmployeeId = r.EmployeeId AND na.App = r.App AND ns.Status = N'Scheduled'
+      ORDER BY ns.StartAt, ns.Id
+    ) nx
+    ${PENDING_WHERE} ${whereSql}
+    ${orderSql};
+  `;
+}
+
 /** Attendee-level rows ("who was trained on what, by whom") used by the records view and the Excel export. */
 export function recordsQuery(whereSql: string, orderSql: string) {
   return `

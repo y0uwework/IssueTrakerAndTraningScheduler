@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Check, ExternalLink, Eye, GraduationCap, Image as ImageIcon, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { AppBadge, TrainingStatusBadge } from "../StatusBadge";
+import { AppBadge, AppTrainingBadge, TrainingStatusBadge } from "../StatusBadge";
 import { ModeLabel } from "./TrainingDetails";
 import { readJson } from "@/lib/http";
-import { TRAINERS, findTrainer, formatDate, formatDateTime, type App, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
+import { TRAINERS, findTrainer, formatDate, formatDateTime, type App, type PendingTrainingRow, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
 
 const dash = <span className="text-slate-300">—</span>;
 const th = "px-4 py-2.5 font-medium";
@@ -226,6 +226,63 @@ function TrainedByCell({
         </button>
       </div>
       {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : <p className="mt-1 text-[11px] text-slate-400">Enter to save · Esc to cancel</p>}
+    </div>
+  );
+}
+
+/** Joiners still to be trained on an app: not in any session yet, or only in a scheduled one. */
+export function PendingTable({ rows, onView }: { rows: PendingTrainingRow[]; onView: (sessionId: number) => void }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px] text-left text-sm">
+        <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
+          <tr>
+            <th className={th}>Employee</th>
+            <th className={th}>Designation / Department</th>
+            <th className={th}>Joined</th>
+            <th className={th}>App</th>
+            <th className={th}>Training</th>
+            <th className={th}>Session</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((r) => (
+            <tr key={`${r.EmployeeId}|${r.App}`} className="hover:bg-slate-50">
+              <td className="px-4 py-3">
+                <p className="font-medium text-slate-900">{r.DisplayName}</p>
+                {r.Email && <p className="text-xs text-slate-500">{r.Email}</p>}
+              </td>
+              <td className="px-4 py-3 text-slate-600">
+                {r.Designation || r.Department ? (
+                  <>
+                    <p>{r.Designation || dash}</p>
+                    <p className="text-xs text-slate-500">{[r.Department, r.Unit].filter(Boolean).join(" · ")}</p>
+                  </>
+                ) : (
+                  dash
+                )}
+              </td>
+              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{formatDate(r.DateOfJoining)}</td>
+              <td className="px-4 py-3">
+                <AppBadge app={r.App} />
+              </td>
+              <td className="px-4 py-3">
+                <AppTrainingBadge app={r.App} state={r.SessionId ? "Scheduled" : "Pending"} />
+              </td>
+              <td className="max-w-xs px-4 py-3">
+                {r.SessionId ? (
+                  <button type="button" onClick={() => onView(r.SessionId!)} className="block max-w-full truncate text-left text-slate-700 hover:text-blue-600" title={r.Title ?? undefined}>
+                    <span className="font-mono text-xs text-slate-400">#{r.SessionId}</span> {r.Title}
+                    <span className="block text-xs text-slate-500">{r.StartAt ? formatDateTime(r.StartAt) : "Date not recorded"}</span>
+                  </button>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">Not scheduled yet</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

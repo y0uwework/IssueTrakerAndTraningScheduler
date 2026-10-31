@@ -157,16 +157,35 @@ export interface TrainingRecordRow {
   Trainers: string | null; // comma-separated
 }
 
+// One app a new joiner still has to be trained on (chosen for them, no completed session yet).
+export interface PendingTrainingRow {
+  EmployeeId: number;
+  DisplayName: string;
+  Email: string | null;
+  Unit: string | null;
+  Designation: string | null;
+  Department: string | null;
+  DateOfJoining: string | null;
+  App: App;
+  // The earliest scheduled session the joiner is already in for this app, if any.
+  SessionId: number | null;
+  Title: string | null;
+  StartAt: string | null;
+}
+
 export interface TrainingStats {
   total: number;
   upcoming: number;
   completed: number;
   employeesTrained: number;
+  // Employee/app pairs still to be trained (same rule as New Joiners' "pending").
+  pendingTraining: number;
 }
 
 export interface TrainingListResponse extends PageInfo {
   sessions?: TrainingSessionListItem[];
   records?: TrainingRecordRow[];
+  pending?: PendingTrainingRow[];
   stats: TrainingStats;
 }
 
