@@ -1,23 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { addIssueInputs, buildIssueFilter, handleError, insertImageRows, parseIssueFields } from "@/lib/api";
+import { addIssueInputs, buildIssueFilter, handleError, insertImageRows, paging, parseIssueFields, readPageInfo } from "@/lib/api";
 import { deleteImageFiles, saveImages, validateImages, type SavedImage } from "@/lib/uploads";
 import type { IssueListResponse } from "@/lib/types";
 
-// GET /api/issues?search=&app=&status=&priority=&category=&sort=newest|oldest
+// GET /api/issues?search=&app=&status=&priority=&category=&sort=newest|oldest&page=1
 export async function GET(request: NextRequest) {
   try {
     const { sql, pool } = await getDb();
     const req = pool.request();
-    const { whereSql, orderSql } = buildIssueFilter(sql, req, request.nextUrl.searchParams);
+    const params = request.nextUrl.searchParams;
+    const { whereSql, orderSql } = buildIssueFilter(sql, req, params);
+    const { prelude, pageSql, pageInfoSql } = paging(sql, req, params, `SELECT COUNT(*) FROM dbo.Issues i ${whereSql}`);
 
     const result = await req.query(`
+      ${prelude}
+
       SELECT i.Id, i.Title, i.App, i.Description, i.Category, i.Priority, i.Status, i.RaisedBy, i.AssignedTo,
              i.RaisedAt, i.UpdatedAt, i.ResolvedAt,
              (SELECT COUNT(*) FROM dbo.IssueImages im WHERE im.IssueId = i.Id) AS ImageCount
       FROM dbo.Issues i
       ${whereSql}
-      ${orderSql};
+      ${orderSql}
+      ${pageSql};
 
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN Status = N'Open' THEN 1 ELSE 0 END), 0) AS [open],
@@ -26,10 +31,13 @@ export async function GET(request: NextRequest) {
       FROM dbo.Issues;
 
       SELECT DISTINCT Category FROM dbo.Issues WHERE Category IS NOT NULL ORDER BY Category;
+
+      ${pageInfoSql}
     `);
 
     const recordsets = result.recordsets as Record<string, unknown>[][];
     const body: IssueListResponse = {
+      ...readPageInfo(recordsets[3][0]),
       issues: recordsets[0] as unknown as IssueListResponse["issues"],
       stats: recordsets[1][0] as unknown as IssueListResponse["stats"],
       categories: recordsets[2].map((r) => r.Category as string),

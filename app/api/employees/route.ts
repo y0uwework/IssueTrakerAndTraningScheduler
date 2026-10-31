@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { errorResponse, handleError } from "@/lib/api";
+import { errorResponse, handleError, paging, readPageInfo } from "@/lib/api";
 import { EMPLOYEE_SELECT, INSERT_EMPLOYEE_SQL, addEmployeeInputs, buildEmployeeFilter, isDuplicateKey, parseEmployee } from "@/lib/employees";
 import type { EmployeeListResponse } from "@/lib/types";
 
 const OPTION_COLUMNS = ["Unit", "Department", "Designation", "EmployeeLevel", "ReportingTo", "SystemRequirement", "BaseLocation"] as const;
 
-// GET /api/employees?search=&unit=&department=&status=&training=&from=&to=&sort=newest|oldest|name
+// GET /api/employees?search=&unit=&department=&status=&training=&from=&to=&sort=newest|oldest|name&page=1
 export async function GET(request: NextRequest) {
   try {
     const { sql, pool } = await getDb();
     const req = pool.request();
-    const { whereSql, orderSql } = buildEmployeeFilter(sql, req, request.nextUrl.searchParams);
+    const params = request.nextUrl.searchParams;
+    const { whereSql, orderSql } = buildEmployeeFilter(sql, req, params);
+    // The training filters use the OUTER APPLY in EMPLOYEE_SELECT, so count over the full select.
+    const { prelude, pageSql, pageInfoSql } = paging(sql, req, params, `SELECT COUNT(*) FROM (${EMPLOYEE_SELECT} ${whereSql}) f`);
 
     const result = await req.query(`
+      ${prelude}
+
       ${EMPLOYEE_SELECT}
       ${whereSql}
-      ${orderSql};
+      ${orderSql}
+      ${pageSql};
 
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN x.Status = N'Active' THEN 1 ELSE 0 END), 0) AS active,
@@ -27,13 +33,16 @@ export async function GET(request: NextRequest) {
       -- Distinct values for filters and form suggestions.
       ${OPTION_COLUMNS.map((c) => `SELECT N'${c}' AS Field, ${c} AS Value FROM dbo.Employees WHERE ${c} IS NOT NULL`).join("\nUNION\n")}
       ORDER BY Field, Value;
+
+      ${pageInfoSql}
     `);
 
-    const [employees, stats, optionRows] = result.recordsets as Record<string, unknown>[][];
+    const [employees, stats, optionRows, pageInfo] = result.recordsets as Record<string, unknown>[][];
     const options = Object.fromEntries(OPTION_COLUMNS.map((c) => [c, [] as string[]])) as EmployeeListResponse["options"];
     for (const row of optionRows) options[row.Field as keyof typeof options].push(row.Value as string);
 
     const body: EmployeeListResponse = {
+      ...readPageInfo(pageInfo[0]),
       employees: employees as unknown as EmployeeListResponse["employees"],
       stats: stats[0] as unknown as EmployeeListResponse["stats"],
       options,

@@ -7,6 +7,7 @@ import TrainingImport from "@/components/training/TrainingImport";
 import TrainingDetails from "@/components/training/TrainingDetails";
 import { EmptyTraining, RecordsTable, SessionsTable } from "@/components/training/TrainingTables";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
 import { downloadFile, readJson } from "@/lib/http";
 import { APPS, TRAINING_STATUSES, type TrainingListResponse, type TrainingSessionDetail, type TrainingSessionListItem } from "@/lib/types";
 
@@ -52,8 +53,13 @@ export default function TrainingRecords() {
   if (filters.from) params.set("from", dayStart(filters.from));
   if (filters.to) params.set("to", dayStart(filters.to, 1));
   params.set("sort", filters.sort);
-  // The request key changes whenever the view or filters change, or a reload is requested.
-  const requestKey = `view=${view}&${params}#${reloadKey}`;
+  // The page resets to 1 whenever the filters (or view) change.
+  const filterKey = `view=${view}&${params}`;
+  const [pageState, setPageState] = useState({ key: "", page: 1 });
+  const page = pageState.key === filterKey ? pageState.page : 1;
+  const setPage = (p: number) => setPageState({ key: filterKey, page: p });
+  // The request key changes whenever the filters or page change, or a reload is requested.
+  const requestKey = `${filterKey}&page=${page}#${reloadKey}`;
   const loading = loadedKey !== requestKey;
 
   useEffect(() => {
@@ -304,12 +310,8 @@ export default function TrainingRecords() {
           <div className="py-16 text-center text-sm text-slate-500">Training records could not be loaded.</div>
         )}
 
-        {rows && rows.length > 0 && (
-          <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-            {view === "sessions"
-              ? `Showing ${rows.length} of ${stats?.total ?? rows.length} session${stats?.total === 1 ? "" : "s"}`
-              : `Showing ${rows.length} employee training record${rows.length === 1 ? "" : "s"}`}
-          </div>
+        {rows && data && (
+          <Pagination page={data.page} pageSize={data.pageSize} totalCount={data.totalCount} noun={view === "sessions" ? ["session", "sessions"] : ["training record", "training records"]} onPageChange={setPage} />
         )}
       </section>
 

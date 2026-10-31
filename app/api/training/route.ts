@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { errorResponse, handleError } from "@/lib/api";
+import { errorResponse, handleError, paging, readPageInfo } from "@/lib/api";
 import { addSessionInputs, buildTrainingFilter, insertTrainingImageRows, parseSessionFields, recordsQuery, writeSessionPeople } from "@/lib/training";
 import { deleteImageFiles, saveImages, validateImages, type SavedImage } from "@/lib/uploads";
 import type { TrainingListResponse } from "@/lib/types";
 
-// GET /api/training?view=sessions|records&search=&app=&status=&trainer=&from=&to=&sort=newest|oldest
+// GET /api/training?view=sessions|records&search=&app=&status=&trainer=&from=&to=&sort=newest|oldest&page=1
 export async function GET(request: NextRequest) {
   try {
     const { sql, pool } = await getDb();
@@ -13,10 +13,18 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const view = params.get("view") === "records" ? "records" : "sessions";
     const { whereSql, orderSql } = buildTrainingFilter(sql, req, params, view === "records" ? "attendee" : "session");
+    const countSql =
+      view === "records"
+        ? `SELECT COUNT(*) FROM dbo.TrainingAttendees a
+           JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
+           JOIN dbo.Employees e ON e.Id = a.EmployeeId
+           ${whereSql}`
+        : `SELECT COUNT(*) FROM dbo.TrainingSessions s ${whereSql}`;
+    const { prelude, pageSql, pageInfoSql } = paging(sql, req, params, countSql);
 
     const listSql =
       view === "records"
-        ? recordsQuery(whereSql, orderSql)
+        ? recordsQuery(whereSql, `${orderSql} ${pageSql}`)
         : `
       SELECT s.Id, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status, s.CreatedAt, s.UpdatedAt,
              (SELECT STRING_AGG(t.TrainerName + N' (' + t.App + N')', N', ') WITHIN GROUP (ORDER BY t.App DESC, t.TrainerName)
@@ -28,10 +36,13 @@ export async function GET(request: NextRequest) {
              (SELECT COUNT(*) FROM dbo.TrainingImages im WHERE im.SessionId = s.Id) AS ImageCount
       FROM dbo.TrainingSessions s
       ${whereSql}
-      ${orderSql};
+      ${orderSql}
+      ${pageSql};
     `;
 
     const result = await req.query(`
+      ${prelude}
+
       ${listSql}
 
       SELECT COUNT(*) AS total,
@@ -44,10 +55,13 @@ export async function GET(request: NextRequest) {
       WHERE s.Status = N'Completed';
 
       SELECT DISTINCT TrainerName FROM dbo.TrainingSessionTrainers ORDER BY TrainerName;
+
+      ${pageInfoSql}
     `);
 
-    const [list, stats, trained, trainers] = result.recordsets as Record<string, unknown>[][];
+    const [list, stats, trained, trainers, pageInfo] = result.recordsets as Record<string, unknown>[][];
     const body: TrainingListResponse = {
+      ...readPageInfo(pageInfo[0]),
       [view]: list,
       stats: { ...stats[0], employeesTrained: trained[0].employeesTrained } as TrainingListResponse["stats"],
       trainers: trainers.map((r) => r.TrainerName as string),

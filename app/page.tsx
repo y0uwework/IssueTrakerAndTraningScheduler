@@ -6,6 +6,7 @@ import IssueTable from "@/components/IssueTable";
 import IssueForm from "@/components/IssueForm";
 import IssueDetails from "@/components/IssueDetails";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pagination from "@/components/Pagination";
 import { downloadFile, readJson } from "@/lib/http";
 import { APPS, PRIORITIES, STATUSES, type IssueListItem, type IssueListResponse, type IssueWithImages } from "@/lib/types";
 
@@ -40,8 +41,13 @@ export default function Dashboard() {
   if (filters.priority) params.set("priority", filters.priority);
   if (filters.category) params.set("category", filters.category);
   params.set("sort", filters.sort);
-  // The request key changes whenever filters change or a reload is requested.
-  const requestKey = `${params}#${reloadKey}`;
+  // The page resets to 1 whenever the filters (or view) change.
+  const filterKey = `${params}`;
+  const [pageState, setPageState] = useState({ key: "", page: 1 });
+  const page = pageState.key === filterKey ? pageState.page : 1;
+  const setPage = (p: number) => setPageState({ key: filterKey, page: p });
+  // The request key changes whenever the filters or page change, or a reload is requested.
+  const requestKey = `${filterKey}&page=${page}#${reloadKey}`;
   const loading = loadedKey !== requestKey;
 
   useEffect(() => {
@@ -253,10 +259,8 @@ export default function Dashboard() {
           <div className="py-16 text-center text-sm text-slate-500">Issues could not be loaded.</div>
         )}
 
-        {data && data.issues.length > 0 && (
-          <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-            Showing {data.issues.length} of {data.stats.total} issue{data.stats.total === 1 ? "" : "s"}
-          </div>
+        {data && (
+          <Pagination page={data.page} pageSize={data.pageSize} totalCount={data.totalCount} noun={["issue", "issues"]} onPageChange={setPage} />
         )}
       </section>
 

@@ -48,7 +48,7 @@ export interface IssueStats {
   resolved: number;
 }
 
-export interface IssueListResponse {
+export interface IssueListResponse extends PageInfo {
   issues: IssueListItem[];
   stats: IssueStats;
   categories: string[];
@@ -63,7 +63,7 @@ export function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/** Converts a UTC timestamp to the "YYYY-MM-DDTHH:mm" local value used by <input type="datetime-local">. */
+// Converts a UTC timestamp to the "YYYY-MM-DDTHH:mm" local value used by <input type="datetime-local">. */
 export function toLocalInput(value: string | null) {
   if (!value) return "";
   const d = new Date(value);
@@ -79,7 +79,7 @@ export const TRAINING_MODES = ["F2F", "Online"] as const;
 export type TrainingMode = (typeof TRAINING_MODES)[number];
 export const TRAINING_MODE_LABELS: Record<TrainingMode, string> = { F2F: "Face to face", Online: "Online" };
 
-/** True for an absolute http(s) URL, e.g. a Teams / Meet / Zoom link. */
+// True for an absolute http(s) URL, e.g. a Teams / Meet / Zoom link. */
 export function isMeetingLink(value: string) {
   try {
     const url = new URL(value);
@@ -114,7 +114,7 @@ export interface TrainingSessionListItem extends Omit<TrainingSession, "Notes"> 
   ImageCount: number;
 }
 
-/** A trainer assigned to one app in a session. */
+// A trainer assigned to one app in a session. */
 export interface TrainerAssignment {
   App: App;
   TrainerName: string;
@@ -137,7 +137,7 @@ export interface TrainingSessionDetail extends TrainingSession {
   images: IssueImage[];
 }
 
-/** One new joiner trained on one app in one session. */
+// One new joiner trained on one app in one session. */
 export interface TrainingRecordRow {
   AttendeeId: number;
   SessionId: number;
@@ -162,7 +162,7 @@ export interface TrainingStats {
   employeesTrained: number;
 }
 
-export interface TrainingListResponse {
+export interface TrainingListResponse extends PageInfo {
   sessions?: TrainingSessionListItem[];
   records?: TrainingRecordRow[];
   stats: TrainingStats;
@@ -178,7 +178,7 @@ export function trainingImageUrl(imageId: number) {
 export const EMPLOYEE_STATUSES = ["Active", "Inactive"] as const;
 export type EmployeeStatus = (typeof EMPLOYEE_STATUSES)[number];
 
-/** Per-app training progress: Trained = in a Completed session, Scheduled = in a Scheduled one. */
+// Per-app training progress: Trained = in a Completed session, Scheduled = in a Scheduled one. */
 export const APP_TRAINING_STATES = ["Pending", "Scheduled", "Trained"] as const;
 export type AppTrainingState = (typeof APP_TRAINING_STATES)[number];
 
@@ -210,7 +210,7 @@ export interface Employee {
   UpdatedAt: string;
 }
 
-/** Editable employee columns, in the same order as the HR new-joiner sheet. */
+// Editable employee columns, in the same order as the HR new-joiner sheet. */
 export const EMPLOYEE_FIELDS = [
   { key: "CreationDate", label: "Date of Creation", type: "date" },
   { key: "Unit", label: "Unit", max: 50 },
@@ -244,7 +244,7 @@ export interface EmployeeStats {
   crmTrained: number;
 }
 
-export interface EmployeeListResponse {
+export interface EmployeeListResponse extends PageInfo {
   employees: EmployeeListItem[];
   stats: EmployeeStats;
   options: Record<"Unit" | "Department" | "Designation" | "EmployeeLevel" | "ReportingTo" | "SystemRequirement" | "BaseLocation", string[]>;
@@ -270,25 +270,25 @@ export interface EmployeeImportResult {
   actions: { row: number; action: "insert" | "update" }[];
 }
 
-/** Rows read from images by the AI, before review. */
+// Rows read from images by the AI, before review. */
 export interface EmployeeExtractResponse {
   provider: string;
   model: string;
   rows: { source: string; values: EmployeeInput }[];
 }
 
-/** Formats a DATE column (stored as midnight UTC) without shifting it into the previous day. */
+// Formats a DATE column (stored as midnight UTC) without shifting it into the previous day. */
 export function formatDate(value: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString(undefined, { dateStyle: "medium", timeZone: "UTC" });
 }
 
-/** "YYYY-MM-DD" for <input type="date"> from a DATE column. */
+// "YYYY-MM-DD" for <input type="date"> from a DATE column. */
 export function toDateInput(value: string | null) {
   return value ? value.slice(0, 10) : "";
 }
 
-/** One row of the old (pre-app) training sheet, read and normalized for review before saving. */
+// One row of the old (pre-app) training sheet, read and normalized for review before saving. */
 export interface LegacyTrainingRow {
   row: number; // sheet row number
   name: string | null;
@@ -303,7 +303,7 @@ export interface LegacyTrainingRow {
   end: string | null;
   mode: TrainingMode;
   apps: App[];
-  /** The existing New Joiner this row will be linked to; null means a new employee will be added. */
+  // The existing New Joiner this row will be linked to; null means a new employee will be added. */
   employee: { id: number; name: string } | null;
   warnings: string[];
 }
@@ -315,4 +315,15 @@ export interface LegacyTrainingImportResult {
   employeesOnly: number; // rows without an app: employee saved, no training record
   duplicates: number; // records skipped because they were already saved
   errors: { row: number; message: string }[];
+}
+
+/* ---------------- Pagination ---------------- */
+
+export const PAGE_SIZE = 15;
+
+// Added to every paged list response. `page` is the page actually returned (clamped to the last page). */
+export interface PageInfo {
+  page: number;
+  pageSize: number;
+  totalCount: number; // rows matching the current filters
 }

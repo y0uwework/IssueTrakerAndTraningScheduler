@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import type * as MSSQL from "mssql";
-import { APPS, PRIORITIES, STATUSES, type App, type Priority, type Status } from "./types";
+import { APPS, PAGE_SIZE, PRIORITIES, STATUSES, type App, type PageInfo, type Priority, type Status } from "./types";
 import { UploadError, type SavedImage } from "./uploads";
 
 type Sql = typeof MSSQL;
@@ -12,7 +12,7 @@ export function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-/** Converts thrown errors into JSON responses with sensible status codes. */
+// Converts thrown errors into JSON responses with sensible status codes. */
 export function handleError(err: unknown, action: string) {
   if (err instanceof ValidationError || err instanceof UploadError) {
     return errorResponse(err.message, 400);
@@ -28,7 +28,7 @@ export function handleError(err: unknown, action: string) {
   return errorResponse(`Failed to ${action}. See the server console for details.`, 500);
 }
 
-/** Parses a positive integer route ID; returns null when invalid. */
+// Parses a positive integer route ID; returns null when invalid. */
 export function parseId(raw: string): number | null {
   if (!/^\d{1,10}$/.test(raw)) return null;
   const id = Number(raw);
@@ -46,7 +46,7 @@ export interface IssueFields {
   assignedTo: string | null;
 }
 
-/** Reads a trimmed text field: undefined when not sent, null when empty. */
+// Reads a trimmed text field: undefined when not sent, null when empty. */
 export function text(form: FormData, name: string, max: number, label: string): string | null | undefined {
   const value = form.get(name);
   if (value === null) return undefined; // field not sent
@@ -56,10 +56,10 @@ export function text(form: FormData, name: string, max: number, label: string): 
   return trimmed || null;
 }
 
-/**
- * Validates issue fields from a form. Fields that are not present keep the value from `existing`
- * (used when editing) or fall back to defaults (when creating).
- */
+
+// Validates issue fields from a form. Fields that are not present keep the value from `existing`
+// (used when editing) or fall back to defaults (when creating).
+
 export function parseIssueFields(form: FormData, existing?: IssueFields): IssueFields {
   const title = text(form, "title", 200, "Title");
   const app = text(form, "app", 20, "App");
@@ -88,16 +88,16 @@ export function parseIssueFields(form: FormData, existing?: IssueFields): IssueF
   return fields;
 }
 
-/** A "contains" LIKE pattern with wildcards escaped so the search is literal. */
+// A "contains" LIKE pattern with wildcards escaped so the search is literal. */
 export function likePattern(search: string) {
   return `%${search.replace(/[[%_]/g, (c) => `[${c}]`)}%`;
 }
 
-/**
- * Builds the WHERE/ORDER BY for the issue list from URL filters
- * (search, app, status, priority, category, sort), adding parameters to `req`.
- * Issues are aliased as `i` in the query.
- */
+
+// Builds the WHERE/ORDER BY for the issue list from URL filters
+// (search, app, status, priority, category, sort), adding parameters to `req`.
+// Issues are aliased as `i` in the query.
+
 export function buildIssueFilter(sql: Sql, req: MSSQL.Request, params: URLSearchParams) {
   const where: string[] = [];
 
@@ -144,7 +144,7 @@ export function buildIssueFilter(sql: Sql, req: MSSQL.Request, params: URLSearch
   };
 }
 
-/** Adds the shared issue field parameters to a request. */
+// Adds the shared issue field parameters to a request. */
 export function addIssueInputs(sql: Sql, request: MSSQL.Request, f: IssueFields) {
   return request
     .input("Title", sql.NVarChar(200), f.title)
@@ -157,7 +157,7 @@ export function addIssueInputs(sql: Sql, request: MSSQL.Request, f: IssueFields)
     .input("AssignedTo", sql.NVarChar(100), f.assignedTo);
 }
 
-/** Inserts IssueImages rows for files that were already written to disk. */
+// Inserts IssueImages rows for files that were already written to disk. */
 export async function insertImageRows(sql: Sql, tx: MSSQL.Transaction, issueId: number, saved: SavedImage[]) {
   for (const img of saved) {
     await new sql.Request(tx)
@@ -167,3 +167,27 @@ export async function insertImageRows(sql: Sql, tx: MSSQL.Transaction, issueId: 
       .query("INSERT INTO dbo.IssueImages (IssueId, ImagePath, OriginalFileName) VALUES (@IssueId, @ImagePath, @OriginalFileName)");
   }
 }
+
+
+// Server-side paging for a list query, using the `page` URL parameter (1-based, PAGE_SIZE rows).
+// Usage, all in one batch on `req`:
+// `${prelude}  <list query> ${orderSql} ${pageSql};  ...other queries...  ${pageInfoSql}`
+// `countSql` must count the rows matching the same filters. A page past the end is clamped to the
+// last page (e.g. after deleting the only row on the last page).
+
+export function paging(sql: Sql, req: MSSQL.Request, params: URLSearchParams, countSql: string) {
+  const requested = Math.floor(Number(params.get("page")));
+  const page = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 100000) : 1;
+  req.input("Offset", sql.Int, (page - 1) * PAGE_SIZE);
+  req.input("PageSize", sql.Int, PAGE_SIZE);
+  return {
+    prelude: `
+      DECLARE @Total INT = (${countSql});
+      IF @Offset >= @Total SET @Offset = CASE WHEN @Total = 0 THEN 0 ELSE ((@Total - 1) / @PageSize) * @PageSize END;`,
+    pageSql: "OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY",
+    pageInfoSql: "SELECT @Offset / @PageSize + 1 AS page, @PageSize AS pageSize, @Total AS totalCount;",
+  };
+}
+
+/** Reads the result set produced by `pageInfoSql`. */
+export const readPageInfo = (row: Record<string, unknown>) => row as unknown as PageInfo;
