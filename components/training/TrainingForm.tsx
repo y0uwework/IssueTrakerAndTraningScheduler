@@ -7,6 +7,7 @@ import Modal from "../Modal";
 import ScreenshotPicker, { type PendingFile } from "../ScreenshotPicker";
 import { AppBadge, AppTrainingBadge } from "../StatusBadge";
 import { readJson, sendForm } from "@/lib/http";
+import { randomId } from "@/lib/client-id";
 import {
   APPS,
   MAX_ATTENDEES,
@@ -69,7 +70,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
   const [rows, setRows] = useState<Row[]>(
     () =>
       session?.attendees.map((a) => ({
-        key: crypto.randomUUID(),
+        key: randomId(),
         employeeId: a.EmployeeId,
         displayName: a.DisplayName,
         subtitle: subtitleOf(a),
@@ -133,7 +134,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
     for (const e of people) {
       for (const app of pickerApps) {
         if (inSession.has(`${e.Id}|${app}`)) continue;
-        added.push({ key: crypto.randomUUID(), employeeId: e.Id, displayName: e.DisplayName, subtitle: subtitleOf(e), app, trainers: [...trainers[app]] });
+        added.push({ key: randomId(), employeeId: e.Id, displayName: e.DisplayName, subtitle: subtitleOf(e), app, trainers: [...trainers[app]] });
       }
     }
     if (rows.length + added.length > MAX_ATTENDEES) return setAddNote(`A session can have at most ${MAX_ATTENDEES} employee/app rows.`);

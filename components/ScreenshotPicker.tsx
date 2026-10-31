@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Undo2, X } from "lucide-react";
+import { randomId } from "@/lib/client-id";
 import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES, type IssueImage } from "@/lib/types";
 
 export interface PendingFile {
@@ -40,7 +41,7 @@ export default function ScreenshotPicker({ existing, srcFor, pending, setPending
     for (const file of Array.from(list)) {
       if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) errors.push(`${file.name}: only JPEG, PNG, or WebP images are allowed.`);
       else if (file.size > MAX_IMAGE_BYTES) errors.push(`${file.name}: larger than 5 MB.`);
-      else accepted.push({ key: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) });
+      else accepted.push({ key: randomId(), file, previewUrl: URL.createObjectURL(file) });
     }
     setPending((prev) => [...prev, ...accepted]);
     setFileError(errors.join(" "));

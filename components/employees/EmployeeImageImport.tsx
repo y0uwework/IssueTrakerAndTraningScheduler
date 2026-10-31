@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ImagePlus, Loader2, Plus, RefreshCw, Sparkles, X } from "lucide-react";
 import Modal from "../Modal";
 import { readJson, sendForm } from "@/lib/http";
+import { randomId } from "@/lib/client-id";
 import {
   ACCEPTED_IMAGE_TYPES,
   EMPLOYEE_FIELDS,
@@ -83,7 +84,7 @@ export default function EmployeeImageImport({ onClose, onImported }: EmployeeIma
     for (const file of Array.from(list)) {
       if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) problems.push(`${file.name}: only JPEG, PNG, or WebP images are allowed.`);
       else if (file.size > MAX_IMAGE_BYTES) problems.push(`${file.name}: larger than 5 MB.`);
-      else accepted.push({ key: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) });
+      else accepted.push({ key: randomId(), file, previewUrl: URL.createObjectURL(file) });
     }
     setImages((prev) => {
       const next = [...prev, ...accepted];
