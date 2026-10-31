@@ -48,6 +48,8 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 const subtitleOf = (e: { Designation: string | null; Department: string | null; Unit: string | null }) =>
   [e.Designation, e.Department, e.Unit].filter(Boolean).join(" · ");
 const trainingState = (e: EmployeeListItem, app: App) => e.Training[app];
+// Still needs training on the app: it was chosen for the joiner and they aren't trained yet.
+const needsApp = (e: EmployeeListItem, app: App) => e.TrainingApps.includes(app) && trainingState(e, app) !== "Trained";
 const emptyByApp = <T,>(make: () => T) => Object.fromEntries(APPS.map((a) => [a, make()])) as Record<App, T>;
 
 export default function TrainingForm({ session, onClose, onSaved }: TrainingFormProps) {
@@ -111,7 +113,7 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
   const shown = (employees ?? []).filter((e) => {
     // Hide people already added for every chosen app.
     if (pickerApps.every((app) => inSession.has(`${e.Id}|${app}`))) return false;
-    if (pendingOnly && pickerApps.every((app) => trainingState(e, app) === "Trained")) return false;
+    if (pendingOnly && !pickerApps.some((app) => needsApp(e, app))) return false;
     if (!query) return true;
     return [e.DisplayName, e.Email, e.Designation, e.Department, e.Unit, e.BaseLocation].some((v) => v?.toLowerCase().includes(query));
   });
@@ -132,10 +134,15 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
     if (people.length === 0) return setAddNote("Tick the new joiners to add.");
     const added: Row[] = [];
     for (const e of people) {
-      for (const app of pickerApps) {
+      // With "All", each person is only added for the apps chosen for them (a single app is added as picked).
+      const apps = addApp === "All" ? pickerApps.filter((app) => e.TrainingApps.includes(app)) : pickerApps;
+      for (const app of apps) {
         if (inSession.has(`${e.Id}|${app}`)) continue;
         added.push({ key: randomId(), employeeId: e.Id, displayName: e.DisplayName, subtitle: subtitleOf(e), app, trainers: [...trainers[app]] });
       }
+    }
+    if (added.length === 0) {
+      return setAddNote(addApp === "All" ? "No apps are chosen for the ticked joiners. Pick an app under “Train on” to add them anyway." : "Already added.");
     }
     if (rows.length + added.length > MAX_ATTENDEES) return setAddNote(`A session can have at most ${MAX_ATTENDEES} employee/app rows.`);
     setRows((prev) => [...prev, ...added]);
@@ -408,7 +415,7 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
                         </span>
                       </span>
                       <span className="hidden shrink-0 gap-1 sm:flex">
-                        {APPS.map((app) => (
+                        {APPS.filter((app) => trainingState(e, app) !== "Not required").map((app) => (
                           <AppTrainingBadge key={app} app={app} state={trainingState(e, app)} />
                         ))}
                       </span>

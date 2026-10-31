@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, parseId } from "@/lib/api";
-import { EMPLOYEE_SELECT, UPDATE_EMPLOYEE_SQL, addEmployeeInputs, isDuplicateKey, parseEmployee, withTraining } from "@/lib/employees";
+import { EMPLOYEE_SELECT, UPDATE_EMPLOYEE_SQL, addEmployeeInputs, isDuplicateKey, parseEmployee, parseTrainingApps, saveTrainingApps, withTraining } from "@/lib/employees";
 
 const NOT_FOUND = "Employee not found.";
 const INVALID_ID = "Invalid employee ID.";
@@ -33,7 +33,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/employe
   }
 }
 
-// PUT /api/employees/[id]  (JSON: all employee columns)
+// PUT /api/employees/[id]  (JSON: all employee columns, plus TrainingApps to change the joiner's training apps)
 export async function PUT(request: NextRequest, ctx: RouteContext<"/api/employees/[id]">) {
   const id = parseId((await ctx.params).id);
   if (!id) return errorResponse(INVALID_ID, 400);
@@ -42,10 +42,23 @@ export async function PUT(request: NextRequest, ctx: RouteContext<"/api/employee
     const input = await request.json().catch(() => null);
     if (!input || typeof input !== "object") return errorResponse("Request body must be JSON.", 400);
     const fields = parseEmployee(input);
+    const apps = parseTrainingApps(input.TrainingApps); // undefined = keep the saved apps
 
     const { sql, pool } = await getDb();
-    const updated = await addEmployeeInputs(sql, pool.request().input("Id", sql.Int, id), fields).query(UPDATE_EMPLOYEE_SQL);
-    if (updated.rowsAffected[0] === 0) return errorResponse(NOT_FOUND, 404);
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const updated = await addEmployeeInputs(sql, new sql.Request(tx).input("Id", sql.Int, id), fields).query(UPDATE_EMPLOYEE_SQL);
+      if (updated.rowsAffected[0] === 0) {
+        await tx.rollback();
+        return errorResponse(NOT_FOUND, 404);
+      }
+      if (apps) await saveTrainingApps(sql, new sql.Request(tx), id, apps);
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
     return NextResponse.json({ id });
   } catch (err) {
     if (isDuplicateKey(err)) return errorResponse("Another employee already has this email address.", 409);

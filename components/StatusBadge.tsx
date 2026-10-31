@@ -67,6 +67,7 @@ export function TrainingStatusBadge({ status }: { status: TrainingStatus }) {
 }
 
 const TRAINING_STATE_STYLES: Record<AppTrainingState, string> = {
+  "Not required": "bg-slate-50 text-slate-400 ring-slate-400/20",
   Pending: "bg-amber-50 text-amber-700 ring-amber-600/20",
   Scheduled: "bg-blue-50 text-blue-700 ring-blue-600/20",
   Trained: "bg-green-50 text-green-700 ring-green-600/20",

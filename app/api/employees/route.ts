@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, paging, readPageInfo } from "@/lib/api";
-import { EMPLOYEE_SELECT, INSERT_EMPLOYEE_SQL, addEmployeeInputs, buildEmployeeFilter, isDuplicateKey, parseEmployee, trainingColumn, withTraining } from "@/lib/employees";
+import {
+  EMPLOYEE_SELECT,
+  INSERT_EMPLOYEE_SQL,
+  addEmployeeInputs,
+  buildEmployeeFilter,
+  isDuplicateKey,
+  parseEmployee,
+  parseTrainingApps,
+  requiredColumn,
+  saveTrainingApps,
+  trainingColumn,
+  withTraining,
+} from "@/lib/employees";
 import { APPS, type App } from "@/lib/types";
 import type { EmployeeListResponse } from "@/lib/types";
 
@@ -27,7 +39,11 @@ export async function GET(request: NextRequest) {
 
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN x.Status = N'Active' THEN 1 ELSE 0 END), 0) AS active,
-             ${APPS.map((_, i) => `COALESCE(SUM(CASE WHEN x.${trainingColumn(i)} = N'Trained' THEN 1 ELSE 0 END), 0) AS trained_${i}`).join(", ")}
+             ${APPS.map(
+               (_, i) =>
+                 `COALESCE(SUM(CASE WHEN x.${trainingColumn(i)} = N'Trained' THEN 1 ELSE 0 END), 0) AS trained_${i}, ` +
+                 `COALESCE(SUM(CASE WHEN x.${requiredColumn(i)} = 1 AND x.${trainingColumn(i)} <> N'Trained' THEN 1 ELSE 0 END), 0) AS pending_${i}`,
+             ).join(", ")}
       FROM (${EMPLOYEE_SELECT}) x;
 
       -- Distinct values for filters and form suggestions.
@@ -48,6 +64,7 @@ export async function GET(request: NextRequest) {
         total: stats[0].total as number,
         active: stats[0].active as number,
         trained: Object.fromEntries(APPS.map((app, i) => [app, stats[0][`trained_${i}`] as number])) as Record<App, number>,
+        pending: Object.fromEntries(APPS.map((app, i) => [app, stats[0][`pending_${i}`] as number])) as Record<App, number>,
       },
       options,
     };
@@ -57,16 +74,27 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/employees  (JSON: employee columns)
+// POST /api/employees  (JSON: employee columns + TrainingApps: ["HRMS", ...])
 export async function POST(request: NextRequest) {
   try {
     const input = await request.json().catch(() => null);
     if (!input || typeof input !== "object") return errorResponse("Request body must be JSON.", 400);
     const fields = parseEmployee(input);
+    const apps = parseTrainingApps(input.TrainingApps) ?? [];
 
     const { sql, pool } = await getDb();
-    const inserted = await addEmployeeInputs(sql, pool.request(), fields).query(INSERT_EMPLOYEE_SQL);
-    return NextResponse.json({ id: inserted.recordset[0].Id }, { status: 201 });
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const inserted = await addEmployeeInputs(sql, new sql.Request(tx), fields).query(INSERT_EMPLOYEE_SQL);
+      const id = inserted.recordset[0].Id as number;
+      await saveTrainingApps(sql, new sql.Request(tx), id, apps);
+      await tx.commit();
+      return NextResponse.json({ id }, { status: 201 });
+    } catch (err) {
+      await tx.rollback().catch(() => {});
+      throw err;
+    }
   } catch (err) {
     if (isDuplicateKey(err)) return errorResponse("Another employee already has this email address.", 409);
     return handleError(err, "create employee");

@@ -31,7 +31,8 @@ export default function EmployeeDetails({ employee, onClose, onEdit, onOpenSessi
         </>
       }
     >
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs font-medium text-slate-500">Training:</span>
         {APPS.map((app) => (
           <AppTrainingBadge key={app} app={app} state={employee.Training[app]} />
         ))}

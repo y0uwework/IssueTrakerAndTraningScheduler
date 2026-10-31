@@ -179,8 +179,9 @@ export function trainingImageUrl(imageId: number) {
 export const EMPLOYEE_STATUSES = ["Active", "Inactive"] as const;
 export type EmployeeStatus = (typeof EMPLOYEE_STATUSES)[number];
 
-// Per-app training progress: Trained = in a Completed session, Scheduled = in a Scheduled one. */
-export const APP_TRAINING_STATES = ["Pending", "Scheduled", "Trained"] as const;
+// Per-app training progress: Trained = in a Completed session, Scheduled = in a Scheduled one,
+// Pending = the app was chosen for the joiner but there is no session yet, Not required = the app wasn't chosen.
+export const APP_TRAINING_STATES = ["Not required", "Pending", "Scheduled", "Trained"] as const;
 export type AppTrainingState = (typeof APP_TRAINING_STATES)[number];
 
 // Suggestions offered in the form; any other value can still be typed.
@@ -231,9 +232,15 @@ export const EMPLOYEE_FIELDS = [
 ] as const satisfies readonly { key: keyof Employee; label: string; max?: number; type?: string; required?: boolean }[];
 
 export type EmployeeFieldKey = (typeof EMPLOYEE_FIELDS)[number]["key"];
-export type EmployeeInput = Partial<Record<EmployeeFieldKey, string | null>>;
+export type EmployeeInput = Partial<Record<EmployeeFieldKey, string | null>> & {
+  // Apps the joiner has to be trained on (a list, or comma-separated text from a sheet).
+  // Left out = keep the saved list on update, none on create.
+  TrainingApps?: App[] | string | null;
+};
 
 export interface EmployeeListItem extends Employee {
+  // Apps chosen for this joiner's training, in master config order.
+  TrainingApps: App[];
   // Training state per app in the master config.
   Training: Record<App, AppTrainingState>;
 }
@@ -243,6 +250,8 @@ export interface EmployeeStats {
   active: number;
   // Employees trained, per app.
   trained: Record<App, number>;
+  // Employees who need training on the app and aren't trained yet, per app.
+  pending: Record<App, number>;
 }
 
 export interface EmployeeListResponse extends PageInfo {

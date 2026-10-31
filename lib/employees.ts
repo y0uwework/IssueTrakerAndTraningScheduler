@@ -96,30 +96,74 @@ export function isDuplicateKey(err: unknown) {
 // SQL string literal for a configured app name.
 export const appLiteral = (app: App) => `N'${app.replace(/'/g, "''")}'`;
 
-// Employee columns plus one training-state column per app in the master config, named Training_0, Training_1, ...
-// (in APPS order; turn them into `Training` with withTraining). Employees are aliased `e`;
-// `tr.A<n>` is 2 = trained (completed session), 1 = scheduled, 0 = pending for APPS[n].
+// Employee columns plus, per app in the master config (in APPS order), a training-state column Training_<n>
+// and a Required_<n> flag (1 = the app was chosen for the joiner). withTraining turns them into
+// `Training` and `TrainingApps`. Employees are aliased `e`;
+// `tr.A<n>` is 2 = trained (completed session), 1 = scheduled, 0 = no session for APPS[n];
+// `ra.R<n>` is 1 when APPS[n] is one of the joiner's training apps.
 export const trainingColumn = (i: number) => `Training_${i}`;
+export const requiredColumn = (i: number) => `Required_${i}`;
 export const EMPLOYEE_SELECT = `
   SELECT e.Id, ${COLUMNS.map((c) => `e.${c}`).join(", ")}, e.CreatedAt, e.UpdatedAt,
-         ${APPS.map((_, i) => `CASE COALESCE(tr.A${i}, 0) WHEN 2 THEN N'Trained' WHEN 1 THEN N'Scheduled' ELSE N'Pending' END AS ${trainingColumn(i)}`).join(", ")}
+         ${APPS.map(
+           (_, i) =>
+             `CASE COALESCE(tr.A${i}, 0) WHEN 2 THEN N'Trained' WHEN 1 THEN N'Scheduled' ELSE CASE WHEN ra.R${i} = 1 THEN N'Pending' ELSE N'Not required' END END AS ${trainingColumn(i)}, ` +
+             `COALESCE(ra.R${i}, 0) AS ${requiredColumn(i)}`,
+         ).join(", ")}
   FROM dbo.Employees e
   OUTER APPLY (
     SELECT ${APPS.map((app, i) => `MAX(CASE WHEN a.App = ${appLiteral(app)} THEN CASE s.Status WHEN N'Completed' THEN 2 WHEN N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS A${i}`).join(", ")}
     FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
     WHERE a.EmployeeId = e.Id
-  ) tr`;
+  ) tr
+  OUTER APPLY (
+    SELECT ${APPS.map((app, i) => `MAX(CASE WHEN r.App = ${appLiteral(app)} THEN 1 ELSE 0 END) AS R${i}`).join(", ")}
+    FROM dbo.EmployeeTrainingApps r
+    WHERE r.EmployeeId = e.Id
+  ) ra`;
 
-// Moves the Training_<n> columns of an EMPLOYEE_SELECT row into `Training: { [app]: state }`.
+// Moves the Training_<n> / Required_<n> columns of an EMPLOYEE_SELECT row into
+// `Training: { [app]: state }` and `TrainingApps: [app, ...]`.
 export function withTraining<T extends Record<string, unknown>>(row: T) {
   const out: Record<string, unknown> = { ...row };
   const training = {} as Record<App, AppTrainingState>;
+  const apps: App[] = [];
   APPS.forEach((app, i) => {
     training[app] = row[trainingColumn(i)] as AppTrainingState;
+    if (row[requiredColumn(i)]) apps.push(app);
     delete out[trainingColumn(i)];
+    delete out[requiredColumn(i)];
   });
   out.Training = training;
+  out.TrainingApps = apps;
   return out;
+}
+
+/**
+ * Reads the joiner's training apps from the form/sheet value: a list of app names or comma-separated text
+ * ("HRMS, CRM"). Matching ignores case. Returns undefined when the value was left out (keep what is saved).
+ */
+export function parseTrainingApps(raw: unknown): App[] | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return [];
+  const names = Array.isArray(raw) ? raw.map(String) : String(raw).split(/[,;/\n]+/);
+  const chosen = new Set<App>();
+  for (const name of names.map((n) => n.trim()).filter(Boolean)) {
+    const app = APPS.find((a) => a.toLowerCase() === name.toLowerCase().replace(/\s+/g, " "));
+    if (!app) throw new ValidationError(`"${name}" is not an app. Training apps must be from: ${APPS.join(", ")}.`);
+    chosen.add(app);
+  }
+  return APPS.filter((a) => chosen.has(a));
+}
+
+/** Replaces the joiner's training apps. `request` must be on the same transaction/pool as the employee save. */
+export async function saveTrainingApps(sql: Sql, request: MSSQL.Request, employeeId: number, apps: App[]) {
+  request.input("EmployeeId", sql.Int, employeeId);
+  apps.forEach((app, i) => request.input(`TrainingApp${i}`, sql.NVarChar(20), app));
+  await request.query(`
+    DELETE FROM dbo.EmployeeTrainingApps WHERE EmployeeId = @EmployeeId;
+    ${apps.length ? `INSERT INTO dbo.EmployeeTrainingApps (EmployeeId, App) VALUES ${apps.map((_, i) => `(@EmployeeId, @TrainingApp${i})`).join(", ")};` : ""}
+  `);
 }
 
 /**
@@ -155,14 +199,18 @@ export function buildEmployeeFilter(sql: Sql, req: MSSQL.Request, params: URLSea
     where.push("e.Status = @Status");
   }
 
-  // training=any-pending | fully-trained | pending:<app>
+  // training=any-pending | fully-trained | pending:<app> | no-apps
+  // Only the apps chosen for a joiner count: an app that isn't required is never "pending".
   const training = params.get("training") ?? "";
-  const done = (i: number) => `COALESCE(tr.A${i}, 0) = 2`;
-  if (training === "any-pending") where.push(`NOT (${APPS.map((_, i) => done(i)).join(" AND ")})`);
-  else if (training === "fully-trained") where.push(`(${APPS.map((_, i) => done(i)).join(" AND ")})`);
+  const needs = (i: number) => `(COALESCE(ra.R${i}, 0) = 1 AND COALESCE(tr.A${i}, 0) <> 2)`;
+  const anyRequired = `(${APPS.map((_, i) => `COALESCE(ra.R${i}, 0) = 1`).join(" OR ")})`;
+  const anyNeeded = `(${APPS.map((_, i) => needs(i)).join(" OR ")})`;
+  if (training === "any-pending") where.push(anyNeeded);
+  else if (training === "fully-trained") where.push(`${anyRequired} AND NOT ${anyNeeded}`);
+  else if (training === "no-apps") where.push(`NOT ${anyRequired}`);
   else if (training.startsWith("pending:")) {
     const i = (APPS as readonly string[]).indexOf(training.slice("pending:".length));
-    if (i >= 0) where.push(`NOT ${done(i)}`);
+    if (i >= 0) where.push(needs(i));
   }
 
   // Date of joining range, as plain calendar days.

@@ -17,11 +17,12 @@ import { APPS, EMPLOYEE_STATUSES, formatDate, type EmployeeDetail, type Employee
 type Filters = { search: string; unit: string; department: string; status: string; training: string; from: string; to: string; sort: "newest" | "oldest" | "name" };
 const EMPTY_FILTERS: Filters = { search: "", unit: "", department: "", status: "", training: "", from: "", to: "", sort: "newest" };
 
-// One "not trained" option per app in the master config.
+// One "not trained" option per app in the master config. Only apps chosen for a joiner count.
 const TRAINING_FILTERS = [
   { value: "any-pending", label: "Training pending" },
-  ...APPS.map((app) => ({ value: `pending:${app}`, label: `${app} not trained` })),
+  ...APPS.map((app) => ({ value: `pending:${app}`, label: `${app} pending` })),
   { value: "fully-trained", label: "Fully trained" },
+  { value: "no-apps", label: "No apps chosen" },
 ];
 
 const APP_CARD_COLORS = ["text-violet-600 bg-violet-50", "text-teal-600 bg-teal-50", "text-indigo-600 bg-indigo-50"];
@@ -155,8 +156,14 @@ export default function NewJoiners() {
   const cards = [
     { label: "New Joiners", value: stats?.total, icon: Users, color: "text-slate-600 bg-slate-100" },
     { label: "Active", value: stats?.active, icon: UserCheck, color: "text-blue-600 bg-blue-50" },
-    ...APPS.map((app, i) => ({ label: `${app} Trained`, value: stats?.trained[app], icon: GraduationCap, color: APP_CARD_COLORS[i % APP_CARD_COLORS.length] })),
-  ];
+    ...APPS.map((app, i) => ({
+      label: `${app} Trained`,
+      value: stats?.trained[app],
+      note: stats ? `${stats.pending[app]} pending` : undefined,
+      icon: GraduationCap,
+      color: APP_CARD_COLORS[i % APP_CARD_COLORS.length],
+    })),
+  ] as { label: string; value: number | undefined; note?: string; icon: typeof Users; color: string }[];
 
   return (
     <main className="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8">
@@ -175,14 +182,17 @@ export default function NewJoiners() {
       </PageHeader>
 
       <section className={`mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 ${cards.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-        {cards.map(({ label, value, icon: Icon, color }) => (
+        {cards.map(({ label, value, note, icon: Icon, color }) => (
           <div key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-surface p-4 shadow-xs">
             <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${color}`}>
               <Icon size={18} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-slate-500">{label}</p>
-              <p className="text-xl font-semibold text-slate-900">{value ?? "–"}</p>
+              <p className="text-xl font-semibold text-slate-900">
+                {value ?? "–"}
+                {note && <span className="ml-1.5 text-xs font-medium text-amber-600">{note}</span>}
+              </p>
             </div>
           </div>
         ))}
@@ -343,9 +353,10 @@ export default function NewJoiners() {
                         <td className="px-4 py-3 text-slate-600">{e.ReportingTo || dash}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col items-start gap-1">
-                            {APPS.map((app) => (
+                            {APPS.filter((app) => e.Training[app] !== "Not required").map((app) => (
                               <AppTrainingBadge key={app} app={app} state={e.Training[app]} />
                             ))}
+                            {APPS.every((app) => e.Training[app] === "Not required") && <span className="text-xs text-slate-400 italic">No apps chosen</span>}
                           </div>
                         </td>
                         <td className="px-4 py-3">

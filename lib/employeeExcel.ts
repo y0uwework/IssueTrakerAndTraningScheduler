@@ -7,10 +7,15 @@ const DATE_FORMAT = "dd.mm.yyyy";
 
 const normalize = (header: string) => header.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 
+// Sheet column for the apps the joiner has to be trained on ("HRMS, CRM"); not an Employees column.
+export const TRAINING_APPS_KEY = "TrainingApps";
+export const TRAINING_APPS_HEADER = "APPS FOR TRAINING";
+type SheetKey = EmployeeFieldKey | typeof TRAINING_APPS_KEY;
+
 // Header text (normalized) -> column. Each field's own label plus common variations.
-const HEADER_MAP = new Map<string, EmployeeFieldKey>();
+const HEADER_MAP = new Map<string, SheetKey>();
 for (const f of EMPLOYEE_FIELDS) HEADER_MAP.set(normalize(f.label), f.key);
-const ALIASES: Record<string, EmployeeFieldKey> = {
+const ALIASES: Record<string, SheetKey> = {
   "CREATION DATE": "CreationDate",
   NAME: "DisplayName",
   "EMPLOYEE NAME": "DisplayName",
@@ -29,6 +34,11 @@ const ALIASES: Record<string, EmployeeFieldKey> = {
   "OFFICIAL MOBILE": "MobileOfficial",
   "MOBILE NO OFFICIAL": "MobileOfficial",
   ADDRESS: "CorrespondenceAddress",
+  [TRAINING_APPS_HEADER]: TRAINING_APPS_KEY,
+  "TRAINING APPS": TRAINING_APPS_KEY,
+  "TRAINING REQUIRED": TRAINING_APPS_KEY,
+  "TRAINING REQUIRED FOR": TRAINING_APPS_KEY,
+  APPS: TRAINING_APPS_KEY,
 };
 for (const [header, key] of Object.entries(ALIASES)) HEADER_MAP.set(header, key);
 
@@ -60,7 +70,7 @@ export async function readEmployeeSheet(buffer: Buffer): Promise<SheetRow[]> {
 
   for (const sheet of workbook.worksheets) {
     for (let headerRow = 1; headerRow <= Math.min(15, sheet.rowCount); headerRow++) {
-      const columns = new Map<number, EmployeeFieldKey>();
+      const columns = new Map<number, SheetKey>();
       sheet.getRow(headerRow).eachCell((cell, col) => {
         const key = HEADER_MAP.get(normalize(String(cellValue(cell.value) ?? "")));
         if (key && ![...columns.values()].includes(key)) columns.set(col, key);
@@ -105,6 +115,7 @@ export async function writeEmployeeWorkbook(employees: EmployeeListItem[] | null
       width: widths[f.key] ?? 16,
       style: "type" in f && f.type === "date" ? { numFmt: DATE_FORMAT } : undefined,
     })),
+    { header: TRAINING_APPS_HEADER, key: TRAINING_APPS_KEY, width: 20 },
     // One training column per app in the master config.
     ...(employees ? APPS.map((app, i) => ({ header: `${app.toUpperCase()} TRAINING`, key: `Training_${i}`, width: 14 })) : []),
   ];
@@ -121,6 +132,7 @@ export async function writeEmployeeWorkbook(employees: EmployeeListItem[] | null
       SNo: i + 1,
       CreationDate: toExcelDate(e.CreationDate),
       DateOfJoining: toExcelDate(e.DateOfJoining),
+      [TRAINING_APPS_KEY]: e.TrainingApps.join(", "),
       ...Object.fromEntries(APPS.map((app, i) => [`Training_${i}`, e.Training[app]])),
     });
     row.alignment = { vertical: "middle", wrapText: true };

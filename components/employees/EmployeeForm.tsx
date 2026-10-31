@@ -6,6 +6,7 @@ import Modal from "../Modal";
 import OptionSelect from "../OptionSelect";
 import { readJson } from "@/lib/http";
 import {
+  APPS,
   EMPLOYEE_FIELDS,
   EMPLOYEE_STATUSES,
   SUGGESTED_DEPARTMENTS,
@@ -14,14 +15,15 @@ import {
   SUGGESTED_SYSTEM_REQUIREMENTS,
   SUGGESTED_UNITS,
   toDateInput,
-  type Employee,
+  type App,
+  type EmployeeListItem,
   type EmployeeFieldKey,
   type EmployeeInput,
   type EmployeeListResponse,
 } from "@/lib/types";
 
 interface EmployeeFormProps {
-  employee: Employee | null; // null = create
+  employee: EmployeeListItem | null; // null = create
   options: EmployeeListResponse["options"] | undefined;
   onClose: () => void;
   onSaved: (message: string) => void;
@@ -63,8 +65,12 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
     }
     return initial;
   });
+  // Apps this joiner has to be trained on. Nothing is ticked for a new joiner: choose the apps they need.
+  const [apps, setApps] = useState<App[]>(() => employee?.TrainingApps ?? []);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const toggleApp = (app: App) => setApps((prev) => (prev.includes(app) ? prev.filter((a) => a !== app) : APPS.filter((a) => a === app || prev.includes(a))));
 
   // Suggestions: values already used plus the sheet's usual ones.
   const suggestions: Partial<Record<EmployeeFieldKey, string[]>> = {
@@ -88,7 +94,7 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
     setError("");
     setSaving(true);
     try {
-      const body: EmployeeInput = { ...values };
+      const body: EmployeeInput = { ...values, TrainingApps: apps };
       await readJson(
         await fetch(employee ? `/api/employees/${employee.Id}` : "/api/employees", {
           method: employee ? "PUT" : "POST",
@@ -124,7 +130,8 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
         {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
         <div className="grid gap-4 sm:grid-cols-3">
-          {EMPLOYEE_FIELDS.map((f) => {
+          {/* A new joiner is always Active; Status can only be changed when editing. */}
+          {EMPLOYEE_FIELDS.filter((f) => employee || f.key !== "Status").map((f) => {
             const id = `emp-${f.key}`;
             const type = "type" in f ? f.type : "text";
             const required = "required" in f && f.required;
@@ -162,6 +169,24 @@ export default function EmployeeForm({ employee, options, onClose, onSaved }: Em
             );
           })}
         </div>
+
+        <fieldset className="rounded-md border border-slate-200 p-3">
+          <legend className="px-1 text-sm font-medium text-slate-700">Training required for</legend>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {APPS.map((app) => {
+              const state = employee?.Training[app];
+              const done = state === "Trained" || state === "Scheduled";
+              return (
+                <label key={app} className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={apps.includes(app)} onChange={() => toggleApp(app)} />
+                  {app}
+                  {done && <span className="text-xs text-slate-400">({state.toLowerCase()})</span>}
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Only the ticked apps count as pending training for this joiner.</p>
+        </fieldset>
       </form>
     </Modal>
   );

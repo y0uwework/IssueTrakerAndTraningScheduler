@@ -203,6 +203,9 @@ export async function writeSessionPeople(sql: Sql, tx: MSSQL.Transaction, sessio
       VALUES (@SessionId, @EmployeeId, @App);
       SET @AttendeeId = SCOPE_IDENTITY();
       INSERT INTO dbo.TrainingAttendeeTrainers (AttendeeId, TrainerName) VALUES ${values.join(", ")};
+      -- Being trained on an app means the joiner needs it.
+      IF NOT EXISTS (SELECT 1 FROM dbo.EmployeeTrainingApps WHERE EmployeeId = @EmployeeId AND App = @App)
+        INSERT INTO dbo.EmployeeTrainingApps (EmployeeId, App) VALUES (@EmployeeId, @App);
     `);
   }
 }
