@@ -3,12 +3,12 @@ import { Bug, GraduationCap, LayoutGrid, Users, type LucideIcon } from "lucide-r
 
 export interface SidebarItem {
   href: string;
-  /** Text in the sidebar link. */
+  // Text in the sidebar link. 
   label: string;
   icon: LucideIcon;
-  /** Page heading and browser tab title. */
+  // Page heading and browser tab title. 
   title: string;
-  / Subtitle under the page heading, and the page's meta description. */
+  // Subtitle under the page heading, and the page's meta description.
   description: string;
 }
 
@@ -42,7 +42,7 @@ export const SIDEBAR_CONFIG = {
       title: "Training Records",
       description: "Schedule HRMS and CRM training and record who was trained, by whom.",
     },
-  ] as const satisfies readonly SidebarItem[],
+  ] satisfies SidebarItem[],
 };
 
 export type SidebarHref = (typeof SIDEBAR_CONFIG.items)[number]["href"];
@@ -51,12 +51,12 @@ export function sidebarItem(href: SidebarHref): SidebarItem {
   return SIDEBAR_CONFIG.items.find((item) => item.href === href)!;
 }
 
-/** Whether a sidebar link should be highlighted for the current path. */
+// Whether a sidebar link should be highlighted for the current path. 
 export function isActive(href: string, pathname: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Route metadata (<title> and description) from the sidebar entry. */
+// Route metadata (<title> and description) from the sidebar entry. 
 export function pageMetadata(href: SidebarHref): Metadata {
   const { title, description } = sidebarItem(href);
   return { title, description };
