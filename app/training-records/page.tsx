@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CalendarClock, CheckCircle2, FileSpreadsheet, GraduationCap, Layers, Loader2, Plus, RefreshCw, Search, Upload, Users, X } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, FileSpreadsheet, GraduationCap, Layers, Loader2, Plus, RefreshCw, Search, Users, X } from "lucide-react";
 import TrainingForm from "@/components/training/TrainingForm";
 import TrainingImport from "@/components/training/TrainingImport";
 import TrainingDetails from "@/components/training/TrainingDetails";
