@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, MapPin, Plus, Search, Trash2, UserPlus, Video, X } from "lucide-react";
+import { Loader2, MapPin, Search, Trash2, UserPlus, Video, X } from "lucide-react";
 import Modal from "../Modal";
 import ScreenshotPicker, { type PendingFile } from "../ScreenshotPicker";
 import { AppBadge, AppTrainingBadge } from "../StatusBadge";
@@ -10,6 +10,7 @@ import { readJson, sendForm } from "@/lib/http";
 import { randomId } from "@/lib/client-id";
 import {
   APPS,
+  TRAINERS,
   MAX_ATTENDEES,
   MAX_TRAINERS,
   TRAINING_MODES,
@@ -28,7 +29,6 @@ import {
 
 interface TrainingFormProps {
   session: TrainingSessionDetail | null; // null = create
-  knownTrainers: string[];
   onClose: () => void;
   onSaved: (message: string) => void;
 }
@@ -42,14 +42,15 @@ interface Row {
   trainers: string[];
 }
 
-type AppChoice = App | "Both";
+type AppChoice = App | "All";
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const subtitleOf = (e: { Designation: string | null; Department: string | null; Unit: string | null }) =>
   [e.Designation, e.Department, e.Unit].filter(Boolean).join(" · ");
-const trainingState = (e: EmployeeListItem, app: App) => (app === "HRMS" ? e.HrmsTraining : e.CrmTraining);
+const trainingState = (e: EmployeeListItem, app: App) => e.Training[app];
+const emptyByApp = <T,>(make: () => T) => Object.fromEntries(APPS.map((a) => [a, make()])) as Record<App, T>;
 
-export default function TrainingForm({ session, knownTrainers, onClose, onSaved }: TrainingFormProps) {
+export default function TrainingForm({ session, onClose, onSaved }: TrainingFormProps) {
   const [title, setTitle] = useState(session?.Title ?? "");
   const [status, setStatus] = useState<string>(session?.Status ?? "Scheduled");
   const [startAt, setStartAt] = useState(toLocalInput(session?.StartAt ?? null));
@@ -61,11 +62,10 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
 
   // Trainers are assigned per app.
   const [trainers, setTrainers] = useState<Record<App, string[]>>(() => {
-    const byApp = { HRMS: [], CRM: [] } as Record<App, string[]>;
-    session?.trainers.forEach((t) => byApp[t.App].push(t.TrainerName));
+    const byApp = emptyByApp<string[]>(() => []);
+    session?.trainers.forEach((t) => byApp[t.App]?.push(t.TrainerName));
     return byApp;
   });
-  const [trainerDraft, setTrainerDraft] = useState<Record<App, string>>({ HRMS: "", CRM: "" });
 
   const [rows, setRows] = useState<Row[]>(
     () =>
@@ -85,7 +85,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
   const [pickerSearch, setPickerSearch] = useState("");
   const [pendingOnly, setPendingOnly] = useState(true);
   const [selected, setSelected] = useState<number[]>([]);
-  const [addApp, setAddApp] = useState<AppChoice>("Both");
+  const [addApp, setAddApp] = useState<AppChoice>("All");
   const [addNote, setAddNote] = useState("");
 
   const [pending, setPending] = useState<PendingFile[]>([]);
@@ -96,7 +96,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/employees?status=Active&sort=newest", { signal: controller.signal, cache: "no-store" })
+    fetch("/api/employees?status=Active&sort=newest&all=1", { signal: controller.signal, cache: "no-store" })
       .then((res) => readJson<EmployeeListResponse>(res))
       .then((data) => setEmployees(data.employees))
       .catch((err) => {
@@ -105,7 +105,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
     return () => controller.abort();
   }, []);
 
-  const pickerApps: App[] = addApp === "Both" ? [...APPS] : [addApp];
+  const pickerApps: App[] = addApp === "All" ? [...APPS] : [addApp];
   const inSession = new Set(rows.map((r) => `${r.employeeId}|${r.app}`));
   const query = pickerSearch.trim().toLowerCase();
   const shown = (employees ?? []).filter((e) => {
@@ -143,8 +143,8 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
     setAddNote("");
   }
 
-  function addTrainer(app: App) {
-    const name = trainerDraft[app].trim().replace(/\s+/g, " ");
+  // `name` comes from the trainer dropdown (the master config list).
+  function addTrainer(app: App, name: string) {
     if (!name) return;
     if (APPS.reduce((n, a) => n + trainers[a].length, 0) >= MAX_TRAINERS) return setError(`A session can have at most ${MAX_TRAINERS} trainers.`);
     if (!trainers[app].some((t) => same(t, name))) {
@@ -152,7 +152,6 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
       // Employees of this app with nobody selected yet are assumed to be trained by the new trainer.
       setRows((prev) => prev.map((r) => (r.app === app && r.trainers.length === 0 ? { ...r, trainers: [name] } : r)));
     }
-    setTrainerDraft((prev) => ({ ...prev, [app]: "" }));
   }
 
   function removeTrainer(app: App, name: string) {
@@ -318,37 +317,27 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
           <span className="label">
             Trainers <span className="text-red-600">*</span> <span className="font-normal text-slate-400">· assign trainers for each app covered in this session</span>
           </span>
-          <datalist id="trainer-options">
-            {knownTrainers.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {APPS.map((app) => (
               <div key={app} className="rounded-md border border-slate-200 p-3">
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
                   <AppBadge app={app} /> trainers
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    className="field"
-                    list="trainer-options"
-                    value={trainerDraft[app]}
-                    onChange={(e) => setTrainerDraft((prev) => ({ ...prev, [app]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addTrainer(app);
-                      }
-                    }}
-                    maxLength={100}
-                    placeholder={`${app} trainer name`}
-                    aria-label={`${app} trainer name`}
-                  />
-                  <button type="button" className="btn-secondary" onClick={() => addTrainer(app)} disabled={!trainerDraft[app].trim()} aria-label={`Add ${app} trainer`}>
-                    <Plus size={15} />
-                  </button>
-                </div>
+                {/* Trainers come from the master config (configs/master-config.ts). */}
+                <select
+                  className="field"
+                  value=""
+                  onChange={(e) => addTrainer(app, e.target.value)}
+                  disabled={TRAINERS.every((t) => trainers[app].some((x) => same(x, t)))}
+                  aria-label={`Add ${app} trainer`}
+                >
+                  <option value="">Add {app} trainer…</option>
+                  {TRAINERS.filter((t) => !trainers[app].some((x) => same(x, t))).map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
                 {trainers[app].length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {trainers[app].map((t) => (
@@ -432,7 +421,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 p-2">
               <span className="text-xs text-slate-500">Train on</span>
               <div className="inline-flex overflow-hidden rounded-md border border-slate-300 bg-surface text-xs font-medium" role="group" aria-label="App">
-                {([...APPS, "Both"] as AppChoice[]).map((a) => (
+                {([...APPS, "All"] as AppChoice[]).map((a) => (
                   <button
                     key={a}
                     type="button"
@@ -440,7 +429,7 @@ export default function TrainingForm({ session, knownTrainers, onClose, onSaved 
                     className={`px-3 py-1.5 ${addApp === a ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
                     aria-pressed={addApp === a}
                   >
-                    {a}
+                    {a === "All" ? "All apps" : a}
                   </button>
                 ))}
               </div>

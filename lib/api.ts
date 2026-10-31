@@ -174,12 +174,15 @@ export async function insertImageRows(sql: Sql, tx: MSSQL.Transaction, issueId: 
 // `${prelude}  <list query> ${orderSql} ${pageSql};  ...other queries...  ${pageInfoSql}`
 // `countSql` must count the rows matching the same filters. A page past the end is clamped to the
 // last page (e.g. after deleting the only row on the last page).
+// `all=1` returns every matching row in one page (for pickers such as the training form's employee list).
+const ALL_ROWS = 100000;
 
 export function paging(sql: Sql, req: MSSQL.Request, params: URLSearchParams, countSql: string) {
+  const pageSize = params.get("all") === "1" ? ALL_ROWS : PAGE_SIZE;
   const requested = Math.floor(Number(params.get("page")));
-  const page = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 100000) : 1;
-  req.input("Offset", sql.Int, (page - 1) * PAGE_SIZE);
-  req.input("PageSize", sql.Int, PAGE_SIZE);
+  const page = pageSize === ALL_ROWS ? 1 : Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 100000) : 1;
+  req.input("Offset", sql.Int, (page - 1) * pageSize);
+  req.input("PageSize", sql.Int, pageSize);
   return {
     prelude: `
       DECLARE @Total INT = (${countSql});

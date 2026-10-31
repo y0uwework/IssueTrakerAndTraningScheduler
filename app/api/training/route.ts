@@ -54,17 +54,14 @@ export async function GET(request: NextRequest) {
       FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
       WHERE s.Status = N'Completed';
 
-      SELECT DISTINCT TrainerName FROM dbo.TrainingSessionTrainers ORDER BY TrainerName;
-
       ${pageInfoSql}
     `);
 
-    const [list, stats, trained, trainers, pageInfo] = result.recordsets as Record<string, unknown>[][];
+    const [list, stats, trained, pageInfo] = result.recordsets as Record<string, unknown>[][];
     const body: TrainingListResponse = {
       ...readPageInfo(pageInfo[0]),
       [view]: list,
       stats: { ...stats[0], employeesTrained: trained[0].employeesTrained } as TrainingListResponse["stats"],
-      trainers: trainers.map((r) => r.TrainerName as string),
     };
     return NextResponse.json(body);
   } catch (err) {

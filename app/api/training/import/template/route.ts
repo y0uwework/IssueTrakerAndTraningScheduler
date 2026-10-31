@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { handleError } from "@/lib/api";
+import { APPS } from "@/lib/types";
 
 // GET /api/training/import/template  -> sample old-training sheet (.xlsx) in the layout the import reads
 export async function GET() {
@@ -44,7 +45,7 @@ export async function GET() {
         sheet.getCell(r, col).dataValidation = { type: "list", allowBlank: true, formulae: [`"${values.join(",")}"`], showErrorMessage: false };
       }
     };
-    list("apps", ["CRM", "HRMS", "CRM, HRMS"]);
+    list("apps", [...APPS]);
     list("mode", ["Online", "F2F"]);
 
     const help = workbook.addWorksheet("How to fill");
@@ -57,7 +58,7 @@ export async function GET() {
       "• User Email is used to match people already in New Joiners (existing employees are not changed).",
       "• Training Date: a date cell, or text like 15.07.2026 / 15-07-2026 (day first). Empty = date not recorded.",
       "• Training Time: start - end, e.g. 3:00 - 4:00 or 14:30 - 15:15. Without AM/PM, 1:00–7:59 is read as afternoon.",
-      "• Apps: CRM, HRMS or both (\"CRM, HRMS\"). Empty = only the employee is saved, no training record.",
+      `• Apps: ${APPS.join(", ")}, or several separated by commas (e.g. "${APPS.slice(0, 2).join(", ")}"). Empty = only the employee is saved, no training record.`,
       "• Mode of Training: Online or F2F (offline). Empty = F2F.",
       "• Rows with the same date, time and mode become one training session. You can review and fix every row before saving.",
     ].forEach((line, i) => {

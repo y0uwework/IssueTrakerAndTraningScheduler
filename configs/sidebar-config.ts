@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Bug, GraduationCap, LayoutGrid, Users, type LucideIcon } from "lucide-react";
+import { APPS } from "./master-config";
+
+// "HRMS, CRM and Prod CRM" from the master config.
+const appList = APPS.length > 1 ? `${APPS.slice(0, -1).join(", ")} and ${APPS.at(-1)}` : APPS.join("");
 
 export interface SidebarItem {
   href: string;
@@ -33,14 +37,14 @@ export const SIDEBAR_CONFIG = {
       label: "New Joiners",
       icon: Users,
       title: "New Joiners",
-      description: "Employee details from the HR joining sheet, with their HRMS and CRM training status.",
+      description: `Employee details from the HR joining sheet, with their ${appList} training status.`,
     },
     {
       href: "/training-records",
       label: "Training Records",
       icon: GraduationCap,
       title: "Training Records",
-      description: "Schedule HRMS and CRM training and record who was trained, by whom.",
+      description: `Schedule ${appList} training and record who was trained, by whom.`,
     },
   ] satisfies SidebarItem[],
 };

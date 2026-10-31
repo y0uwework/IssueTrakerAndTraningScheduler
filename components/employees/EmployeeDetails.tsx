@@ -33,7 +33,7 @@ export default function EmployeeDetails({ employee, onClose, onEdit, onOpenSessi
     >
       <div className="flex flex-wrap gap-1.5">
         {APPS.map((app) => (
-          <AppTrainingBadge key={app} app={app} state={app === "HRMS" ? employee.HrmsTraining : employee.CrmTraining} />
+          <AppTrainingBadge key={app} app={app} state={employee.Training[app]} />
         ))}
       </div>
 

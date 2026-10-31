@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { databaseName, loadDbConfig } from "../lib/db-config.mjs";
+import { databaseName, loadDbConfig } from "../configs/db-config.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = path.join(root, "database", "migrations");

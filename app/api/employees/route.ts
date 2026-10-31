@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, paging, readPageInfo } from "@/lib/api";
-import { EMPLOYEE_SELECT, INSERT_EMPLOYEE_SQL, addEmployeeInputs, buildEmployeeFilter, isDuplicateKey, parseEmployee } from "@/lib/employees";
+import { EMPLOYEE_SELECT, INSERT_EMPLOYEE_SQL, addEmployeeInputs, buildEmployeeFilter, isDuplicateKey, parseEmployee, trainingColumn, withTraining } from "@/lib/employees";
+import { APPS, type App } from "@/lib/types";
 import type { EmployeeListResponse } from "@/lib/types";
 
 const OPTION_COLUMNS = ["Unit", "Department", "Designation", "EmployeeLevel", "ReportingTo", "SystemRequirement", "BaseLocation"] as const;
@@ -26,8 +27,7 @@ export async function GET(request: NextRequest) {
 
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN x.Status = N'Active' THEN 1 ELSE 0 END), 0) AS active,
-             COALESCE(SUM(CASE WHEN x.HrmsTraining = N'Trained' THEN 1 ELSE 0 END), 0) AS hrmsTrained,
-             COALESCE(SUM(CASE WHEN x.CrmTraining = N'Trained' THEN 1 ELSE 0 END), 0) AS crmTrained
+             ${APPS.map((_, i) => `COALESCE(SUM(CASE WHEN x.${trainingColumn(i)} = N'Trained' THEN 1 ELSE 0 END), 0) AS trained_${i}`).join(", ")}
       FROM (${EMPLOYEE_SELECT}) x;
 
       -- Distinct values for filters and form suggestions.
@@ -43,8 +43,12 @@ export async function GET(request: NextRequest) {
 
     const body: EmployeeListResponse = {
       ...readPageInfo(pageInfo[0]),
-      employees: employees as unknown as EmployeeListResponse["employees"],
-      stats: stats[0] as unknown as EmployeeListResponse["stats"],
+      employees: employees.map(withTraining) as unknown as EmployeeListResponse["employees"],
+      stats: {
+        total: stats[0].total as number,
+        active: stats[0].active as number,
+        trained: Object.fromEntries(APPS.map((app, i) => [app, stats[0][`trained_${i}`] as number])) as Record<App, number>,
+      },
       options,
     };
     return NextResponse.json(body);

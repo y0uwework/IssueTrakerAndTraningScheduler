@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { handleError } from "@/lib/api";
-import { EMPLOYEE_SELECT, buildEmployeeFilter } from "@/lib/employees";
+import { EMPLOYEE_SELECT, buildEmployeeFilter, withTraining } from "@/lib/employees";
 import { writeEmployeeWorkbook } from "@/lib/employeeExcel";
 import type { EmployeeListItem } from "@/lib/types";
 
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       const { sql, pool } = await getDb();
       const req = pool.request();
       const { whereSql, orderSql } = buildEmployeeFilter(sql, req, params);
-      employees = (await req.query(`${EMPLOYEE_SELECT} ${whereSql} ${orderSql}`)).recordset as EmployeeListItem[];
+      employees = (await req.query(`${EMPLOYEE_SELECT} ${whereSql} ${orderSql}`)).recordset.map(withTraining) as unknown as EmployeeListItem[];
     }
 
     const buffer = await writeEmployeeWorkbook(employees);

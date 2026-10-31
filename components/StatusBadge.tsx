@@ -1,13 +1,16 @@
-import type { App, AppTrainingState, Priority, Status, TrainingStatus } from "@/lib/types";
+import { APPS, type App, type AppTrainingState, type Priority, type Status, type TrainingStatus } from "@/lib/types";
 
-const APP_STYLES: Record<App, string> = {
-  HRMS: "bg-violet-50 text-violet-700 ring-violet-600/20",
-  CRM: "bg-teal-50 text-teal-700 ring-teal-600/20",
-};
+// Badge colours by the app's position in the master config (repeats if there are more apps).
+const APP_PALETTE = [
+  "bg-violet-50 text-violet-700 ring-violet-600/20",
+  "bg-teal-50 text-teal-700 ring-teal-600/20",
+  "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
+];
+const appStyle = (app: App) => APP_PALETTE[APPS.indexOf(app) % APP_PALETTE.length] ?? "bg-slate-100 text-slate-600 ring-slate-500/20";
 
 export function AppBadge({ app }: { app: App }) {
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${APP_STYLES[app] ?? "bg-slate-100 text-slate-600 ring-slate-500/20"}`}>
+    <span className={`inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${appStyle(app)}`}>
       {app}
     </span>
   );

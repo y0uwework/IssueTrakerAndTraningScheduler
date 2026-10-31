@@ -1,6 +1,6 @@
 import "server-only";
 import type * as MSSQL from "mssql";
-import { loadDbConfig } from "./db-config.mjs";
+import { loadDbConfig } from "@/configs/db-config.mjs";
 
 type Sql = typeof MSSQL;
 

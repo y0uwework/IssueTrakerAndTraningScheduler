@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, parseId } from "@/lib/api";
-import { EMPLOYEE_SELECT, UPDATE_EMPLOYEE_SQL, addEmployeeInputs, isDuplicateKey, parseEmployee } from "@/lib/employees";
+import { EMPLOYEE_SELECT, UPDATE_EMPLOYEE_SQL, addEmployeeInputs, isDuplicateKey, parseEmployee, withTraining } from "@/lib/employees";
 
 const NOT_FOUND = "Employee not found.";
 const INVALID_ID = "Invalid employee ID.";
@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext<"/api/employe
     `);
     const [employees, training] = result.recordsets as Record<string, unknown>[][];
     if (!employees[0]) return errorResponse(NOT_FOUND, 404);
-    return NextResponse.json({ ...employees[0], training });
+    return NextResponse.json({ ...withTraining(employees[0]), training });
   } catch (err) {
     return handleError(err, "load employee");
   }

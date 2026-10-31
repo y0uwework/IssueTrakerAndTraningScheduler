@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { sidebarItem, type SidebarHref } from "@/lib/sidebar-config";
+import { sidebarItem, type SidebarHref } from "@/configs/sidebar-config";
 
 // Page heading + subtitle taken from the sidebar config, with optional action buttons on the right. 
 export default function PageHeader({ href, children }: { href: SidebarHref; children?: ReactNode }) {

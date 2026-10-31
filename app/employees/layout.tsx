@@ -1,4 +1,4 @@
-import { pageMetadata } from "@/lib/sidebar-config";
+import { pageMetadata } from "@/configs/sidebar-config";
 
 export const metadata = pageMetadata("/employees");
 

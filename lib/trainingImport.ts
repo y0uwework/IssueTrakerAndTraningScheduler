@@ -4,7 +4,7 @@ import { getDb } from "./db";
 import { ValidationError } from "./api";
 import { cellValue } from "./employeeExcel";
 import { INSERT_EMPLOYEE_SQL, addEmployeeInputs, parseEmployee } from "./employees";
-import { APPS, MAX_TRAINERS, TRAINING_MODES, type App, type LegacyTrainingImportResult, type LegacyTrainingRow, type TrainingMode } from "./types";
+import { APPS, MAX_TRAINERS, TRAINERS, TRAINING_MODES, findTrainer, type App, type LegacyTrainingImportResult, type LegacyTrainingRow, type TrainingMode } from "./types";
 
 /*
   Import of the old training sheet that was kept by hand before this app existed.
@@ -136,9 +136,21 @@ export function parseLegacyTime(value: Cell): { start: string | null; end: strin
   return { start: fmt(start), end: end !== null && end >= start ? fmt(end) : null };
 }
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Apps named in a cell, e.g. "HRMS , CRM". Longer names are matched (and removed) first,
+// so "Prod CRM" doesn't also count as "CRM".
 function parseApps(value: string | null): App[] {
-  const text = (value ?? "").toUpperCase();
-  return APPS.filter((app) => new RegExp(`\\b${app}\\b`).test(text));
+  let text = (value ?? "").toUpperCase();
+  const found = new Set<App>();
+  for (const app of [...APPS].sort((a, b) => b.length - a.length)) {
+    const re = new RegExp(`\\b${escapeRegExp(app.toUpperCase()).replace(/ /g, "\\s+")}\\b`, "g");
+    if (re.test(text)) {
+      found.add(app);
+      text = text.replace(re, " ");
+    }
+  }
+  return APPS.filter((app) => found.has(app));
 }
 
 function parseMode(value: string | null): TrainingMode {
@@ -261,10 +273,13 @@ function parseSaveRow(item: unknown, i: number): SaveRow {
  * no app -> only the employee is saved.
  */
 export async function importLegacyTraining(items: unknown[], trainerNames: unknown, { dryRun = false } = {}): Promise<LegacyTrainingImportResult> {
-  const trainers = [...new Map((Array.isArray(trainerNames) ? trainerNames : []).map((t) => String(t ?? "").trim().replace(/\s+/g, " ")).filter(Boolean).map((t) => [t.toLowerCase(), t])).values()];
-  if (trainers.length === 0) throw new ValidationError("Enter the trainer name.");
+  // Trainers must come from the master config; they are saved with its spelling.
+  const names = (Array.isArray(trainerNames) ? trainerNames : []).map((t) => String(t ?? "").trim()).filter(Boolean);
+  const unknown = names.find((t) => !findTrainer(t));
+  if (unknown) throw new ValidationError(`"${unknown}" is not a trainer. Choose one of: ${TRAINERS.join(", ")}.`);
+  const trainers = [...new Set(names.map((t) => findTrainer(t)!))];
+  if (trainers.length === 0) throw new ValidationError("Choose the trainer.");
   if (trainers.length > MAX_TRAINERS) throw new ValidationError(`At most ${MAX_TRAINERS} trainers can be given.`);
-  if (trainers.some((t) => t.length > 100)) throw new ValidationError("Trainer names must be 100 characters or fewer.");
 
   const result: LegacyTrainingImportResult = { sessions: 0, records: 0, employeesCreated: 0, employeesOnly: 0, duplicates: 0, errors: [] };
   const rows: SaveRow[] = [];

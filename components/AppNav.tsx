@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
-import { SIDEBAR_CONFIG, isActive } from "@/lib/sidebar-config";
+import { SIDEBAR_CONFIG, isActive } from "@/configs/sidebar-config";
 
-// Left sidebar, built from lib/sidebar-config.ts.
+// Left sidebar, built from configs/sidebar-config.ts.
 // Below the md breakpoint it collapses to an icon-only rail (labels become tooltips).
 export default function AppNav() {
   const pathname = usePathname();

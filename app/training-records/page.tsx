@@ -10,7 +10,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
 import { downloadFile, readJson } from "@/lib/http";
-import { APPS, TRAINING_STATUSES, type TrainingListResponse, type TrainingSessionDetail, type TrainingSessionListItem } from "@/lib/types";
+import { APPS, TRAINERS, TRAINING_STATUSES, type TrainingListResponse, type TrainingSessionDetail, type TrainingSessionListItem } from "@/lib/types";
 
 type View = "sessions" | "records";
 type Filters = { search: string; app: string; status: string; trainer: string; from: string; to: string; sort: "newest" | "oldest" };
@@ -276,7 +276,7 @@ export default function TrainingRecords() {
             </select>
             <select className="field" value={filters.trainer} onChange={(e) => setFilter("trainer", e.target.value)} aria-label="Filter by trainer">
               <option value="">All trainers</option>
-              {data?.trainers.map((t) => (
+              {TRAINERS.map((t) => (
                 <option key={t}>{t}</option>
               ))}
             </select>
@@ -315,7 +315,6 @@ export default function TrainingRecords() {
       {formSession !== undefined && (
         <TrainingForm
           session={formSession}
-          knownTrainers={data?.trainers ?? []}
           onClose={() => setFormSession(undefined)}
           onSaved={(message) => {
             setFormSession(undefined);

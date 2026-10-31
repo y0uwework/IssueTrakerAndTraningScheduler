@@ -1,5 +1,5 @@
 import AppNav from "@/components/AppNav";
-import { pageMetadata } from "@/lib/sidebar-config";
+import { pageMetadata } from "@/configs/sidebar-config";
 import "./globals.css";
 
 // The root route is the Issues page.

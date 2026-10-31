@@ -1,11 +1,13 @@
 // Shared types and constants. Safe to import from both client and server code.
 
-export const APPS = ["HRMS", "CRM"] as const;
+// Apps and trainers come from the master config (configs/master-config.ts).
+import type { App } from "../configs/master-config";
+export { APPS, TRAINERS, findTrainer, isApp, type App, type Trainer } from "../configs/master-config";
+
 export const STATUSES = ["Open", "In Progress", "Resolved", "Closed"] as const;
 export const PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const DEFAULT_CATEGORIES = ["Bug", "Feature Request", "UI / UX", "Performance", "Hardware", "Network", "Other"];
 
-export type App = (typeof APPS)[number];
 export type Status = (typeof STATUSES)[number];
 export type Priority = (typeof PRIORITIES)[number];
 
@@ -166,7 +168,6 @@ export interface TrainingListResponse extends PageInfo {
   sessions?: TrainingSessionListItem[];
   records?: TrainingRecordRow[];
   stats: TrainingStats;
-  trainers: string[];
 }
 
 export function trainingImageUrl(imageId: number) {
@@ -233,15 +234,15 @@ export type EmployeeFieldKey = (typeof EMPLOYEE_FIELDS)[number]["key"];
 export type EmployeeInput = Partial<Record<EmployeeFieldKey, string | null>>;
 
 export interface EmployeeListItem extends Employee {
-  HrmsTraining: AppTrainingState;
-  CrmTraining: AppTrainingState;
+  // Training state per app in the master config.
+  Training: Record<App, AppTrainingState>;
 }
 
 export interface EmployeeStats {
   total: number;
   active: number;
-  hrmsTrained: number;
-  crmTrained: number;
+  // Employees trained, per app.
+  trained: Record<App, number>;
 }
 
 export interface EmployeeListResponse extends PageInfo {

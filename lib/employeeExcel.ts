@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { EMPLOYEE_FIELDS, EMPLOYEE_STATUSES, SUGGESTED_SYSTEM_REQUIREMENTS, type EmployeeFieldKey, type EmployeeListItem } from "./types";
+import { APPS, EMPLOYEE_FIELDS, EMPLOYEE_STATUSES, SUGGESTED_SYSTEM_REQUIREMENTS, type EmployeeFieldKey, type EmployeeListItem } from "./types";
 
 export const MAX_IMPORT_ROWS = 2000;
 const DATE_FORMAT = "dd.mm.yyyy";
@@ -105,7 +105,8 @@ export async function writeEmployeeWorkbook(employees: EmployeeListItem[] | null
       width: widths[f.key] ?? 16,
       style: "type" in f && f.type === "date" ? { numFmt: DATE_FORMAT } : undefined,
     })),
-    ...(employees ? [{ header: "HRMS TRAINING", key: "HrmsTraining", width: 14 }, { header: "CRM TRAINING", key: "CrmTraining", width: 14 }] : []),
+    // One training column per app in the master config.
+    ...(employees ? APPS.map((app, i) => ({ header: `${app.toUpperCase()} TRAINING`, key: `Training_${i}`, width: 14 })) : []),
   ];
 
   const header = sheet.getRow(1);
@@ -120,6 +121,7 @@ export async function writeEmployeeWorkbook(employees: EmployeeListItem[] | null
       SNo: i + 1,
       CreationDate: toExcelDate(e.CreationDate),
       DateOfJoining: toExcelDate(e.DateOfJoining),
+      ...Object.fromEntries(APPS.map((app, i) => [`Training_${i}`, e.Training[app]])),
     });
     row.alignment = { vertical: "middle", wrapText: true };
     if (e.Email) row.getCell("Email").value = { text: e.Email, hyperlink: `mailto:${e.Email}` };

@@ -7,6 +7,8 @@ import {
   MAX_TRAINERS,
   TRAINING_MODES,
   TRAINING_STATUSES,
+  TRAINERS,
+  findTrainer,
   isMeetingLink,
   type App,
   type TrainingMode,
@@ -65,10 +67,12 @@ function parseTrainers(form: FormData): Record<App, string[]> {
     const row = (item ?? {}) as Record<string, unknown>;
     const app = clean(row.app) as App;
     const name = clean(row.name);
-    if (!APPS.includes(app)) throw new ValidationError(`Each trainer needs an app (${APPS.join(" or ")}).`);
+    if (!APPS.includes(app)) throw new ValidationError(`Each trainer needs an app (${APPS.join(", ")}).`);
     if (!name) continue;
-    if (name.length > 100) throw new ValidationError("Trainer names must be 100 characters or fewer.");
-    if (!byApp[app].has(name.toLowerCase())) byApp[app].set(name.toLowerCase(), name);
+    // Trainers must come from the master config; they are saved with its spelling.
+    const trainer = findTrainer(name);
+    if (!trainer) throw new ValidationError(`"${name}" is not a trainer. Choose one of: ${TRAINERS.join(", ")}.`);
+    if (!byApp[app].has(trainer.toLowerCase())) byApp[app].set(trainer.toLowerCase(), trainer);
   }
   const trainers = Object.fromEntries(APPS.map((a) => [a, [...byApp[a].values()]])) as Record<App, string[]>;
   const total = APPS.reduce((n, a) => n + trainers[a].length, 0);

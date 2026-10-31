@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2 } from "lucide-react";
 import Modal from "../Modal";
 import { downloadFile, readJson, sendForm } from "@/lib/http";
-import { APPS, TRAINING_MODES, TRAINING_MODE_LABELS, type App, type LegacyTrainingImportResult, type LegacyTrainingRow, type TrainingMode } from "@/lib/types";
+import { APPS, TRAINERS, TRAINING_MODES, TRAINING_MODE_LABELS, type App, type LegacyTrainingImportResult, type LegacyTrainingRow, type TrainingMode } from "@/lib/types";
 
 interface TrainingImportProps {
   onClose: () => void;
@@ -40,7 +40,7 @@ const small = "field w-auto! px-2! py-1! text-xs!";
 export default function TrainingImport({ onClose, onImported }: TrainingImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
-  const [trainers, setTrainers] = useState("");
+  const [trainerNames, setTrainerNames] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
@@ -78,15 +78,11 @@ export default function TrainingImport({ onClose, onImported }: TrainingImportPr
   const included = rows?.filter((r) => r.include) ?? [];
   const ready = included.filter((r) => problemsOf(r).length === 0);
   const incomplete = included.length - ready.length;
-  const trainerNames = trainers
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
 
   async function handleSave() {
     if (!rows || ready.length === 0) return;
     if (trainerNames.length === 0) {
-      setError("Enter the trainer name — the old sheet does not record who gave the training.");
+      setError("Choose the trainer — the old sheet does not record who gave the training.");
       return;
     }
     setBusy(true);
@@ -151,7 +147,7 @@ export default function TrainingImport({ onClose, onImported }: TrainingImportPr
             <p>
               Upload the training sheet kept before this app (.xlsx). Columns are matched by their header: <span className="text-slate-800">User name</span>, User Email,
               reporting manager, designation, official, personal, location, <span className="text-slate-800">info get on</span> (date),{" "}
-              <span className="text-slate-800">traning time</span>, <span className="text-slate-800">traning status</span> (HRMS / CRM) and MODE OF TRAINING.
+              <span className="text-slate-800">traning time</span>, <span className="text-slate-800">traning status</span> ({APPS.join(" / ")}) and MODE OF TRAINING.
             </p>
             <p>You can check and correct every row before anything is saved. Rows with missing date, time or app are still saved, with that data left empty.</p>
             <button type="button" className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:underline" onClick={handleSample}>
@@ -187,17 +183,24 @@ export default function TrainingImport({ onClose, onImported }: TrainingImportPr
               people not yet in New Joiners are added there, and existing employees are not changed. Records that were already imported are skipped, so importing again is
               safe.
             </p>
-            <label className="block max-w-xl">
-              <span className="mb-1 block font-medium text-slate-700">Trainer(s) *</span>
-              <input
-                className="field"
-                value={trainers}
-                onChange={(e) => setTrainers(e.target.value)}
-                placeholder="e.g. Yuvraj Singh — separate several names with commas"
-                maxLength={500}
-              />
+            {/* Trainers come from the master config (configs/master-config.ts). */}
+            <fieldset className="block max-w-xl">
+              <legend className="mb-1 block font-medium text-slate-700">Trainer(s) *</legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {TRAINERS.map((t) => (
+                  <label key={t} className="inline-flex items-center gap-1.5 text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={trainerNames.includes(t)}
+                      onChange={(e) => setTrainerNames((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)))}
+                    />
+                    {t}
+                  </label>
+                ))}
+              </div>
               <span className="mt-1 block text-xs text-slate-500">The old sheet does not say who trained each person, so these trainers are recorded for every imported row.</span>
-            </label>
+            </fieldset>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
               <span>

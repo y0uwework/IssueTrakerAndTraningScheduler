@@ -1,7 +1,7 @@
 import "server-only";
 import type * as MSSQL from "mssql";
 import { likePattern, ValidationError } from "./api";
-import { EMPLOYEE_FIELDS, EMPLOYEE_STATUSES, type EmployeeFieldKey } from "./types";
+import { APPS, EMPLOYEE_FIELDS, EMPLOYEE_STATUSES, type App, type AppTrainingState, type EmployeeFieldKey } from "./types";
 
 type Sql = typeof MSSQL;
 
@@ -93,21 +93,34 @@ export function isDuplicateKey(err: unknown) {
   return n === 2601 || n === 2627;
 }
 
-/**
- * Employee columns plus per-app training state. Employees are aliased `e`;
- * `tr.Hrms` / `tr.Crm` are 2 = trained (completed session), 1 = scheduled, 0 = pending.
- */
+// SQL string literal for a configured app name.
+export const appLiteral = (app: App) => `N'${app.replace(/'/g, "''")}'`;
+
+// Employee columns plus one training-state column per app in the master config, named Training_0, Training_1, ...
+// (in APPS order; turn them into `Training` with withTraining). Employees are aliased `e`;
+// `tr.A<n>` is 2 = trained (completed session), 1 = scheduled, 0 = pending for APPS[n].
+export const trainingColumn = (i: number) => `Training_${i}`;
 export const EMPLOYEE_SELECT = `
   SELECT e.Id, ${COLUMNS.map((c) => `e.${c}`).join(", ")}, e.CreatedAt, e.UpdatedAt,
-         CASE COALESCE(tr.Hrms, 0) WHEN 2 THEN N'Trained' WHEN 1 THEN N'Scheduled' ELSE N'Pending' END AS HrmsTraining,
-         CASE COALESCE(tr.Crm, 0) WHEN 2 THEN N'Trained' WHEN 1 THEN N'Scheduled' ELSE N'Pending' END AS CrmTraining
+         ${APPS.map((_, i) => `CASE COALESCE(tr.A${i}, 0) WHEN 2 THEN N'Trained' WHEN 1 THEN N'Scheduled' ELSE N'Pending' END AS ${trainingColumn(i)}`).join(", ")}
   FROM dbo.Employees e
   OUTER APPLY (
-    SELECT MAX(CASE WHEN a.App = N'HRMS' THEN CASE s.Status WHEN N'Completed' THEN 2 WHEN N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS Hrms,
-           MAX(CASE WHEN a.App = N'CRM' THEN CASE s.Status WHEN N'Completed' THEN 2 WHEN N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS Crm
+    SELECT ${APPS.map((app, i) => `MAX(CASE WHEN a.App = ${appLiteral(app)} THEN CASE s.Status WHEN N'Completed' THEN 2 WHEN N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS A${i}`).join(", ")}
     FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
     WHERE a.EmployeeId = e.Id
   ) tr`;
+
+// Moves the Training_<n> columns of an EMPLOYEE_SELECT row into `Training: { [app]: state }`.
+export function withTraining<T extends Record<string, unknown>>(row: T) {
+  const out: Record<string, unknown> = { ...row };
+  const training = {} as Record<App, AppTrainingState>;
+  APPS.forEach((app, i) => {
+    training[app] = row[trainingColumn(i)] as AppTrainingState;
+    delete out[trainingColumn(i)];
+  });
+  out.Training = training;
+  return out;
+}
 
 /**
  * WHERE/ORDER BY for the employee list from URL filters
@@ -142,14 +155,15 @@ export function buildEmployeeFilter(sql: Sql, req: MSSQL.Request, params: URLSea
     where.push("e.Status = @Status");
   }
 
-  const training: Record<string, string> = {
-    "hrms-pending": "COALESCE(tr.Hrms, 0) < 2",
-    "crm-pending": "COALESCE(tr.Crm, 0) < 2",
-    "any-pending": "(COALESCE(tr.Hrms, 0) < 2 OR COALESCE(tr.Crm, 0) < 2)",
-    "fully-trained": "(tr.Hrms = 2 AND tr.Crm = 2)",
-  };
-  const trainingFilter = training[params.get("training") ?? ""];
-  if (trainingFilter) where.push(trainingFilter);
+  // training=any-pending | fully-trained | pending:<app>
+  const training = params.get("training") ?? "";
+  const done = (i: number) => `COALESCE(tr.A${i}, 0) = 2`;
+  if (training === "any-pending") where.push(`NOT (${APPS.map((_, i) => done(i)).join(" AND ")})`);
+  else if (training === "fully-trained") where.push(`(${APPS.map((_, i) => done(i)).join(" AND ")})`);
+  else if (training.startsWith("pending:")) {
+    const i = (APPS as readonly string[]).indexOf(training.slice("pending:".length));
+    if (i >= 0) where.push(`NOT ${done(i)}`);
+  }
 
   // Date of joining range, as plain calendar days.
   const from = normalizeDate(params.get("from"));
