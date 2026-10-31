@@ -300,7 +300,15 @@ export default function TrainingRecords() {
             ) : view === "sessions" ? (
               <SessionsTable sessions={data!.sessions!} onView={handleView} onEdit={handleEdit} onDelete={setDeleteTarget} />
             ) : (
-              <RecordsTable records={data!.records!} onView={handleView} />
+              <RecordsTable
+                records={data!.records!}
+                onView={handleView}
+                onTrainerSaved={(attendeeId, trainers) => {
+                  // Update the row in place; the list isn't reloaded so the page and edit mode stay put.
+                  setData((d) => (d?.records ? { ...d, records: d.records.map((r) => (r.AttendeeId === attendeeId ? { ...r, Trainers: trainers } : r)) } : d));
+                  setToast(`Trainer set to ${trainers}.`);
+                }}
+              />
             )}
           </div>
         ) : (

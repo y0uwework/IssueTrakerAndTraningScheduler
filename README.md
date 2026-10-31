@@ -27,6 +27,10 @@ issue_traker/
 │   ├── api.ts                         server-only validation and error helpers
 │   ├── uploads.ts                     server-only image validation and storage
 │   └── types.ts                       shared types and constants
+├── configs/
+│   ├── master-config.ts               apps and trainers: the single source for every dropdown
+│   ├── sidebar-config.ts              sidebar links, page titles and descriptions
+│   └── db-config.mjs                  SQL Server connection settings (app + migrations)
 ├── database/migrations/              schema migrations, applied by `npm run migrate`
 ├── database/create-app-login.sql     optional SQL login for the app (run manually)
 ├── scripts/migrate.mjs                migration runner

@@ -1,9 +1,11 @@
 "use client";
 
-import { ExternalLink, Eye, GraduationCap, Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Check, ExternalLink, Eye, GraduationCap, Image as ImageIcon, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { AppBadge, TrainingStatusBadge } from "../StatusBadge";
 import { ModeLabel } from "./TrainingDetails";
-import { formatDate, formatDateTime, type App, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
+import { readJson } from "@/lib/http";
+import { TRAINERS, findTrainer, formatDate, formatDateTime, type App, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
 
 const dash = <span className="text-slate-300">—</span>;
 const th = "px-4 py-2.5 font-medium";
@@ -130,7 +132,116 @@ export function SessionsTable({ sessions, onView, onEdit, onDelete }: SessionsTa
   );
 }
 
-export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]; onView: (sessionId: number) => void }) {
+// "Trained By" cell. In edit mode a click opens a trainer dropdown (master config);
+// Enter (or the ✓ button) saves, Escape cancels.
+function TrainedByCell({
+  record,
+  editing,
+  active,
+  onActivate,
+  onDone,
+  onSaved,
+}: {
+  record: TrainingRecordRow;
+  editing: boolean;
+  active: boolean;
+  onActivate: () => void;
+  onDone: () => void;
+  onSaved: (attendeeId: number, trainers: string) => void;
+}) {
+  const current = record.Trainers?.split(",").map((t) => findTrainer(t)).find(Boolean) ?? "";
+  const [draft, setDraft] = useState<string>(current);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!editing) return <>{record.Trainers || dash}</>;
+
+  if (!active) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(current);
+          setError("");
+          onActivate();
+        }}
+        className="group inline-flex max-w-full items-center gap-1.5 rounded-md border border-dashed border-slate-300 px-2 py-1 text-left hover:border-blue-400 hover:text-blue-700"
+        title="Click to change the trainer"
+      >
+        <span className="truncate">{record.Trainers || <span className="text-slate-400">Set trainer</span>}</span>
+        <Pencil size={12} className="shrink-0 text-slate-400 group-hover:text-blue-600" />
+      </button>
+    );
+  }
+
+  async function save() {
+    if (!draft || saving) return;
+    if (draft === record.Trainers) return onDone(); // unchanged
+    setSaving(true);
+    setError("");
+    try {
+      const res = await readJson<{ trainers: string }>(
+        await fetch(`/api/training/attendees/${record.AttendeeId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trainer: draft }) }),
+      );
+      onSaved(record.AttendeeId, res.trainers);
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="min-w-44">
+      <div className="flex items-center gap-1">
+        <select
+          autoFocus
+          className="field h-8 py-0 text-sm"
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onDone();
+            }
+          }}
+          aria-label={`Trainer for ${record.DisplayName} (${record.App})`}
+        >
+          <option value="" disabled>
+            Select trainer…
+          </option>
+          {TRAINERS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="icon-btn" onClick={save} disabled={!draft || saving} aria-label="Save trainer" title="Save (Enter)">
+          {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+        </button>
+      </div>
+      {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : <p className="mt-1 text-[11px] text-slate-400">Enter to save · Esc to cancel</p>}
+    </div>
+  );
+}
+
+export function RecordsTable({
+  records,
+  onView,
+  onTrainerSaved,
+}: {
+  records: TrainingRecordRow[];
+  onView: (sessionId: number) => void;
+  onTrainerSaved: (attendeeId: number, trainers: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [activeId, setActiveId] = useState<number | null>(null);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[960px] text-left text-sm">
@@ -140,7 +251,25 @@ export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]
             <th className={th}>Designation / Department</th>
             <th className={th}>Joined</th>
             <th className={th}>App</th>
-            <th className={th}>Trained By</th>
+            <th className={th}>
+              <span className="inline-flex items-center gap-2">
+                Trained By
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing((v) => !v);
+                    setActiveId(null);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
+                    editing ? "bg-blue-600 text-white hover:bg-blue-700" : "text-blue-600 hover:bg-blue-50"
+                  }`}
+                  aria-pressed={editing}
+                  title={editing ? "Stop editing trainers" : "Edit who trained each employee"}
+                >
+                  {editing ? <Check size={12} /> : <Pencil size={12} />} {editing ? "Done" : "Edit"}
+                </button>
+              </span>
+            </th>
             <th className={th}>Date &amp; Time</th>
             <th className={th}>Session</th>
             <th className={th}>Status</th>
@@ -167,7 +296,16 @@ export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]
               <td className="px-4 py-3">
                 <AppBadge app={r.App} />
               </td>
-              <td className="px-4 py-3 text-slate-600">{r.Trainers || dash}</td>
+              <td className="px-4 py-3 text-slate-600">
+                <TrainedByCell
+                  record={r}
+                  editing={editing}
+                  active={activeId === r.AttendeeId}
+                  onActivate={() => setActiveId(r.AttendeeId)}
+                  onDone={() => setActiveId(null)}
+                  onSaved={onTrainerSaved}
+                />
+              </td>
               <td className="px-4 py-3 whitespace-nowrap text-slate-600">{r.StartAt ? formatDateTime(r.StartAt) : "Date not recorded"}</td>
               <td className="max-w-xs px-4 py-3">
                 <button type="button" onClick={() => onView(r.SessionId)} className="block max-w-full truncate text-left text-slate-700 hover:text-blue-600" title={r.Title}>
