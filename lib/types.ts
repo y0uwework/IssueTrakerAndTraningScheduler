@@ -95,7 +95,7 @@ export const MAX_ATTENDEES = 300;
 export interface TrainingSession {
   Id: number;
   Title: string;
-  StartAt: string;
+  StartAt: string | null; // null when the date was not recorded (old training sheet)
   EndAt: string | null;
   Mode: TrainingMode;
   Location: string | null;
@@ -142,7 +142,7 @@ export interface TrainingRecordRow {
   AttendeeId: number;
   SessionId: number;
   Title: string;
-  StartAt: string;
+  StartAt: string | null; // null when the date was not recorded (old training sheet)
   Status: TrainingStatus;
   EmployeeId: number;
   DisplayName: string;
@@ -253,7 +253,7 @@ export interface EmployeeListResponse {
 export interface EmployeeTrainingHistory {
   SessionId: number;
   Title: string;
-  StartAt: string;
+  StartAt: string | null; // null when the date was not recorded (old training sheet)
   Status: TrainingStatus;
   App: App;
   Trainers: string | null;
@@ -286,4 +286,33 @@ export function formatDate(value: string | null) {
 /** "YYYY-MM-DD" for <input type="date"> from a DATE column. */
 export function toDateInput(value: string | null) {
   return value ? value.slice(0, 10) : "";
+}
+
+/** One row of the old (pre-app) training sheet, read and normalized for review before saving. */
+export interface LegacyTrainingRow {
+  row: number; // sheet row number
+  name: string | null;
+  email: string | null;
+  reportingTo: string | null;
+  designation: string | null;
+  mobileOfficial: string | null;
+  mobilePersonal: string | null;
+  location: string | null;
+  date: string | null; // "YYYY-MM-DD"
+  start: string | null; // "HH:MM" (24h, local time)
+  end: string | null;
+  mode: TrainingMode;
+  apps: App[];
+  /** The existing New Joiner this row will be linked to; null means a new employee will be added. */
+  employee: { id: number; name: string } | null;
+  warnings: string[];
+}
+
+export interface LegacyTrainingImportResult {
+  sessions: number;
+  records: number;
+  employeesCreated: number;
+  employeesOnly: number; // rows without an app: employee saved, no training record
+  duplicates: number; // records skipped because they were already saved
+  errors: { row: number; message: string }[];
 }

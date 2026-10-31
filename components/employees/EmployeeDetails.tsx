@@ -81,7 +81,7 @@ export default function EmployeeDetails({ employee, onClose, onEdit, onOpenSessi
                       <AppBadge app={t.App} />
                     </td>
                     <td className="px-3 py-2 text-slate-700">{t.Trainers || "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-600">{formatDateTime(t.StartAt)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-600">{t.StartAt ? formatDateTime(t.StartAt) : "Date not recorded"}</td>
                     <td className="max-w-[16rem] px-3 py-2">
                       <button type="button" onClick={() => onOpenSession(t.SessionId)} className="block max-w-full truncate text-left text-blue-600 hover:underline" title={t.Title}>
                         #{t.SessionId} {t.Title}

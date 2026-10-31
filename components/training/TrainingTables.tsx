@@ -89,7 +89,7 @@ export function SessionsTable({ sessions, onView, onEdit, onDelete }: SessionsTa
                   )}
                 </p>
               </td>
-              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{formatDateTime(s.StartAt)}</td>
+              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{s.StartAt ? formatDateTime(s.StartAt) : "Date not recorded"}</td>
               <td className="px-4 py-3">
                 <AppList apps={s.Apps} />
               </td>
@@ -168,7 +168,7 @@ export function RecordsTable({ records, onView }: { records: TrainingRecordRow[]
                 <AppBadge app={r.App} />
               </td>
               <td className="px-4 py-3 text-slate-600">{r.Trainers || dash}</td>
-              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{formatDateTime(r.StartAt)}</td>
+              <td className="px-4 py-3 whitespace-nowrap text-slate-600">{r.StartAt ? formatDateTime(r.StartAt) : "Date not recorded"}</td>
               <td className="max-w-xs px-4 py-3">
                 <button type="button" onClick={() => onView(r.SessionId)} className="block max-w-full truncate text-left text-slate-700 hover:text-blue-600" title={r.Title}>
                   <span className="font-mono text-xs text-slate-400">#{r.SessionId}</span> {r.Title}

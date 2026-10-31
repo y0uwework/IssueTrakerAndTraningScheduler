@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     ];
     styleHeader(recordSheet);
     for (const r of recordRows.recordset) {
-      recordSheet.addRow({ ...r, ...modeColumns(r), StartAt: localDate(r.StartAt), EndAt: localDate(r.EndAt) }).alignment = { vertical: "top", wrapText: true };
+      recordSheet.addRow({ ...r, ...modeColumns(r), StartAt: localDate(r.StartAt) ?? "Date not recorded", EndAt: localDate(r.EndAt) }).alignment = { vertical: "top", wrapText: true };
     }
 
     const sessionSheet = workbook.addWorksheet("Sessions", { views: [{ state: "frozen", ySplit: 1 }] });
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     ];
     styleHeader(sessionSheet);
     for (const s of sessionRows.recordset) {
-      sessionSheet.addRow({ ...s, ...modeColumns(s), StartAt: localDate(s.StartAt), EndAt: localDate(s.EndAt) }).alignment = { vertical: "top", wrapText: true };
+      sessionSheet.addRow({ ...s, ...modeColumns(s), StartAt: localDate(s.StartAt) ?? "Date not recorded", EndAt: localDate(s.EndAt) }).alignment = { vertical: "top", wrapText: true };
     }
 
     const buffer = await workbook.xlsx.writeBuffer();

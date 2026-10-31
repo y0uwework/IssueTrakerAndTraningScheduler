@@ -107,7 +107,7 @@ BEGIN
     CREATE TABLE dbo.TrainingSessions (
         Id        INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TrainingSessions PRIMARY KEY,
         Title     NVARCHAR(200)     NOT NULL,
-        StartAt   DATETIME2         NOT NULL,
+        StartAt   DATETIME2         NULL, -- NULL only for records imported from the old sheet without a date
         EndAt     DATETIME2         NULL,
         Mode        NVARCHAR(20)    NOT NULL CONSTRAINT DF_TrainingSessions_Mode DEFAULT N'F2F',
         Location    NVARCHAR(200)   NULL,
@@ -119,9 +119,23 @@ BEGIN
         CONSTRAINT CK_TrainingSessions_Title CHECK (LEN(LTRIM(RTRIM(Title))) > 0),
         CONSTRAINT CK_TrainingSessions_Status CHECK (Status IN (N'Scheduled', N'Completed', N'Cancelled')),
         CONSTRAINT CK_TrainingSessions_Mode CHECK (Mode IN (N'F2F', N'Online')),
-        CONSTRAINT CK_TrainingSessions_EndAt CHECK (EndAt IS NULL OR EndAt >= StartAt)
+        CONSTRAINT CK_TrainingSessions_EndAt CHECK (EndAt IS NULL OR (StartAt IS NOT NULL AND EndAt >= StartAt))
     );
 
+    CREATE INDEX IX_TrainingSessions_StartAt ON dbo.TrainingSessions (StartAt);
+END
+GO
+
+-- Upgrade: allow an empty start date (old-sheet records without a date). The index and the
+-- check constraint use the column, so they are dropped and re-created around the change.
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.TrainingSessions') AND name = N'StartAt' AND is_nullable = 0)
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.TrainingSessions') AND name = N'IX_TrainingSessions_StartAt')
+        DROP INDEX IX_TrainingSessions_StartAt ON dbo.TrainingSessions;
+    IF OBJECT_ID(N'dbo.CK_TrainingSessions_EndAt', N'C') IS NOT NULL
+        ALTER TABLE dbo.TrainingSessions DROP CONSTRAINT CK_TrainingSessions_EndAt;
+    ALTER TABLE dbo.TrainingSessions ALTER COLUMN StartAt DATETIME2 NULL;
+    ALTER TABLE dbo.TrainingSessions ADD CONSTRAINT CK_TrainingSessions_EndAt CHECK (EndAt IS NULL OR (StartAt IS NOT NULL AND EndAt >= StartAt));
     CREATE INDEX IX_TrainingSessions_StartAt ON dbo.TrainingSessions (StartAt);
 END
 GO

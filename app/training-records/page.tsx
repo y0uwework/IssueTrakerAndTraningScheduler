@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CalendarClock, CheckCircle2, FileSpreadsheet, GraduationCap, Layers, Loader2, Plus, RefreshCw, Search, Users, X } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, FileSpreadsheet, GraduationCap, Layers, Loader2, Plus, RefreshCw, Search, Upload, Users, X } from "lucide-react";
 import TrainingForm from "@/components/training/TrainingForm";
+import TrainingImport from "@/components/training/TrainingImport";
 import TrainingDetails from "@/components/training/TrainingDetails";
 import { EmptyTraining, RecordsTable, SessionsTable } from "@/components/training/TrainingTables";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -36,6 +37,7 @@ export default function TrainingRecords() {
   const [deleting, setDeleting] = useState(false);
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(filters.search.trim()), 300);
@@ -170,9 +172,14 @@ export default function TrainingRecords() {
           <h1 className="text-xl font-semibold text-slate-900">Training Records</h1>
           <p className="text-sm text-slate-500">Schedule HRMS and CRM training and record who was trained, by whom.</p>
         </div>
-        <button type="button" className="btn-primary self-start sm:self-auto" onClick={() => setFormSession(null)}>
-          <Plus size={16} /> New Session
-        </button>
+        <div className="flex gap-2 self-start sm:self-auto">
+          {/* <button type="button" className="btn-secondary" onClick={() => setImporting(true)} title="Import the training sheet kept before this app">
+            <Upload size={16} /> Import Old Sheet
+          </button> */}
+          <button type="button" className="btn-primary" onClick={() => setFormSession(null)}>
+            <Plus size={16} /> New Session
+          </button>
+        </div>
       </header>
 
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -313,6 +320,16 @@ export default function TrainingRecords() {
           onClose={() => setFormSession(undefined)}
           onSaved={(message) => {
             setFormSession(undefined);
+            setToast(message);
+            reload();
+          }}
+        />
+      )}
+
+      {importing && (
+        <TrainingImport
+          onClose={() => setImporting(false)}
+          onImported={(message) => {
             setToast(message);
             reload();
           }}

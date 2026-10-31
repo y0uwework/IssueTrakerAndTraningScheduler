@@ -33,7 +33,7 @@ const ALIASES: Record<string, EmployeeFieldKey> = {
 for (const [header, key] of Object.entries(ALIASES)) HEADER_MAP.set(header, key);
 
 /** Plain value of a cell: hyperlinks, rich text and formulas are reduced to their text/result. */
-function cellValue(value: ExcelJS.CellValue): string | number | Date | null {
+export function cellValue(value: ExcelJS.CellValue): string | number | Date | null {
   if (value === null || value === undefined) return null;
   if (value instanceof Date || typeof value === "number") return value;
   if (typeof value === "object") {

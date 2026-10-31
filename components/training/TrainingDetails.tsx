@@ -22,8 +22,8 @@ interface TrainingDetailsProps {
   onEdit: () => void;
 }
 
-export function formatDuration(startAt: string, endAt: string | null) {
-  if (!endAt) return null;
+export function formatDuration(startAt: string | null, endAt: string | null) {
+  if (!startAt || !endAt) return null;
   const minutes = Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000);
   if (minutes <= 0) return null;
   const h = Math.floor(minutes / 60);
@@ -39,7 +39,7 @@ export default function TrainingDetails({ session, onClose, onEdit }: TrainingDe
 
   const meta: [string, React.ReactNode][] = [
     ["Status", <TrainingStatusBadge key="s" status={session.Status} />],
-    ["Start", formatDateTime(session.StartAt)],
+    ["Start", session.StartAt ? formatDateTime(session.StartAt) : "Date not recorded"],
     ["End", session.EndAt ? `${formatDateTime(session.EndAt)}${duration ? ` (${duration})` : ""}` : "—"],
     ["Training Mode", <ModeLabel key="m" mode={session.Mode} />],
     session.Mode === "Online"
