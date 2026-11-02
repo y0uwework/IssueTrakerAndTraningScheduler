@@ -467,7 +467,7 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
                 <AppBadge app={app} /> {appRows.length} employee{appRows.length === 1 ? "" : "s"}
                 {trainers[app].length === 0 && <span className="text-red-600">· assign a {app} trainer above</span>}
               </div>
-              <table className="w-full min-w-[560px] text-left text-sm">
+              <table className="w-full min-w-140 text-left text-sm">
                 <thead className="text-xs text-slate-500">
                   <tr>
                     <th className="px-3 py-1.5 font-medium">Employee</th>
