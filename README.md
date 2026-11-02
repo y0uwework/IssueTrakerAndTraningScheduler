@@ -2,6 +2,103 @@
 
 A small, local-only issue tracker. Built with Next.js (App Router), TypeScript, Tailwind CSS v4, SQL Server (`mssql`), and Lucide icons. It runs on `http://localhost:3000` only, with no login.
 
+## Features
+
+The app has three modules, all on one SQL Server database and reached from the sidebar.
+
+### 1. Issues (`/`)
+
+- Create, view, edit and delete issues with a title, description, status (*Open*, *In Progress*, *Resolved*, *Closed*), priority (*Low* to *Critical*) and category.
+- Attach up to 10 screenshots per save (JPEG/PNG/WebP, 5 MB each), with previews, upload progress and a full-size viewer (← / → / Esc).
+- The *Resolved* timestamp is set and cleared automatically when the status changes.
+- Summary cards (counts by status), search by `#ID` or text, filters for status, priority and category, sorting, and pagination.
+- **Export Excel**: the filtered list as `.xlsx` with screenshot thumbnails embedded.
+
+### 2. New Joiners (`/employees`)
+
+- Stores every column of the HR joining sheet (unit, level, email, joining date, designation, location, department, reporting manager, mobiles, system requirement, address, status).
+- **Import Excel**: headers matched by name in any order, Indian date formats and hyperlinked emails handled, and re-imports update existing employees instead of duplicating them.
+- **Import from Image**: an AI vision model (OpenAI or Gemini) reads up to 5 screenshots or photos of the sheet into an editable review table before anything is saved.
+- Per-employee choice of which apps (HRMS, CRM, Prod CRM) they need training on, with a training state per app: *Not required*, *Pending*, *Scheduled*, *Trained*.
+- Filters for "Training pending", per-app pending, "Fully trained" and "No apps chosen". Export to Excel in the same layout, so the file can be re-imported. A blank template is available.
+
+### 3. Training Records (`/training-records`)
+
+- Training sessions with date/time, mode (face to face with a venue, or online with a meeting link), status (*Scheduled*, *Completed*, *Cancelled*), notes and screenshots.
+- Trainers are assigned per app, and each attendee/app row records which trainer trained that person.
+- Add joiners in bulk, by default only those not yet trained on the chosen app.
+- Three views: **Sessions**, **Employee Records** (one row per employee per app) and **Pending Training** (joiners still waiting for a required app).
+- Import of the old hand-kept training sheet (previewed in the browser before saving), and Excel export with a *Sessions* sheet.
+
+### Shared
+
+- Apps and trainers come from one master list (`configs/master-config.ts`), and pages and navigation from `configs/sidebar-config.ts`.
+- Light/dark theme toggle.
+- Safe uploads: magic-byte checks, random file names, and images served only through IDs stored in the database.
+- Versioned SQL migrations (`npm run migrate`).
+- Runs on `localhost` by default. `npm run dev:lan` / `npm run start:lan` serves it on the machine's LAN IP.
+
+## Use cases
+
+| Who | What they use it for |
+| --- | --- |
+| IT / support team | Log problems reported by staff (hardware, network, app bugs) with screenshots, track them to *Resolved*, and send an Excel report to management. |
+| HR / onboarding team | Keep the new joiners sheet in one place instead of scattered Excel files, and import it straight from Excel or a photo of the sheet. |
+| App trainers (HRMS / CRM) | See who still needs training, schedule face-to-face or online sessions, add joiners in bulk and mark who trained whom. |
+| Team leads / managers | Check training completion per app or per trainer, see pending training for their reportees, and export records for audits. |
+| Admin | Add a new app or trainer in the master config, and change the schema safely with migrations. |
+
+## Workflow
+
+```mermaid
+flowchart TD
+    U([User opens the app in a browser]) --> NAV{Sidebar}
+
+    NAV --> ISS[Issues]
+    NAV --> EMP[New Joiners]
+    NAV --> TRN[Training Records]
+
+    %% Issues
+    ISS --> I1[New Issue: title, priority, category, screenshots]
+    I1 --> I2[(Issues + IssueImages tables, files in uploads/)]
+    I2 --> I3[Open → In Progress → Resolved → Closed]
+    I3 --> I4[Search / filter / view details]
+    I4 --> I5[Export Excel with thumbnails]
+
+    %% New joiners
+    EMP --> E1{How is the data added?}
+    E1 -->|Manual form| E4
+    E1 -->|Import Excel| E2[Match columns by header, validate rows]
+    E1 -->|Import from Image| E3[AI vision model reads the sheet, user reviews and fixes rows]
+    E2 --> E4[(Employees table, matched by email)]
+    E3 --> E4
+    E4 --> E5[Choose the apps each joiner needs: HRMS / CRM / Prod CRM]
+    E5 --> E6[App state = Pending]
+
+    %% Training
+    TRN --> T1[Create session: date, time, mode, trainers per app]
+    E6 --> T2[Pending Training view]
+    T2 --> T3[Add selected joiners to a session]
+    T1 --> T3
+    T3 --> T4[App state = Scheduled]
+    T4 --> T5[Mark session Completed, record trainer per attendee]
+    T5 --> T6[App state = Trained]
+    T6 --> T7[Employee Records view + Export Excel]
+    T6 -.updates.-> E4
+```
+
+Behind every screen, the browser calls the Next.js API routes in `app/api/`. These validate the input (`lib/api.ts`, `lib/uploads.ts`) and read and write SQL Server through the shared connection pool in `lib/db.ts`.
+
+## Suggested improvements
+
+1. **Login and roles.** There is no authentication, and `npm run dev:lan` exposes the app to the whole network. Add sign-in (e.g. Microsoft Entra ID / Windows accounts) with roles such as *Admin*, *HR*, *Trainer* and *Viewer*, so that only HR edits joiners and only trainers complete sessions.
+2. **Issue assignment, comments and history.** Add an assignee, a due date / SLA per priority, a comment thread, and an audit log of who changed what and when. Right now an issue only shows its latest state.
+3. **Notifications and calendar invites.** Email or Teams reminders for new pending joiners, a session the day before it starts, and issues that are open past their SLA. Generate an `.ics` invite (with the meeting link) when a session is scheduled.
+4. **Manage apps and trainers from the UI.** Apps and trainers are hard-coded in `configs/master-config.ts`, so adding a trainer needs a code change and a restart. Move them to database tables with an admin screen, and keep the config only as the seed.
+5. **Reports dashboard.** Charts for issues opened vs. resolved per week, average resolution time, training completed per app, per trainer and per month, and how long joiners wait before training.
+6. **Automated tests and CI.** The project has no tests. Add unit tests for the parsers (`lib/employeeImport.ts`, `lib/trainingImport.ts`, date and header matching), API tests against a test database, and a GitHub Actions workflow that runs lint, type-check and build on every push.
+7. **Safer storage and backups.** The project and `uploads/` live in OneDrive, which locks files and isn't a real backup for the database. Move the app outside OneDrive, schedule SQL Server backups together with the `uploads/` folder, and consider resizing large screenshots on upload with `sharp` (already a dependency).
+
 ## Project structure
 
 ```text

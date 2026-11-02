@@ -42,8 +42,6 @@ interface Row {
   trainers: string[];
 }
 
-type AppChoice = App | "All";
-
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const subtitleOf = (e: { Designation: string | null; Department: string | null; Unit: string | null }) =>
   [e.Designation, e.Department, e.Unit].filter(Boolean).join(" · ");
@@ -87,7 +85,8 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
   const [pickerSearch, setPickerSearch] = useState("");
   const [pendingOnly, setPendingOnly] = useState(true);
   const [selected, setSelected] = useState<number[]>([]);
-  const [addApp, setAddApp] = useState<AppChoice>("All");
+  // Apps to add the ticked joiners for. Several can be picked; empty = "All apps" (each joiner's chosen apps).
+  const [addApps, setAddApps] = useState<App[]>([]);
   const [addNote, setAddNote] = useState("");
 
   const [pending, setPending] = useState<PendingFile[]>([]);
@@ -107,7 +106,8 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
     return () => controller.abort();
   }, []);
 
-  const pickerApps: App[] = addApp === "All" ? [...APPS] : [addApp];
+  const allApps = addApps.length === 0;
+  const pickerApps: App[] = allApps ? [...APPS] : APPS.filter((app) => addApps.includes(app));
   const inSession = new Set(rows.map((r) => `${r.employeeId}|${r.app}`));
   const query = pickerSearch.trim().toLowerCase();
   const shown = (employees ?? []).filter((e) => {
@@ -129,20 +129,25 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
     setSelected((prev) => (allShownSelected ? prev.filter((id) => !shownIds.includes(id)) : [...new Set([...prev, ...shownIds])]));
   }
 
+  function toggleAddApp(app: App) {
+    setAddApps((prev) => (prev.includes(app) ? prev.filter((a) => a !== app) : [...prev, app]));
+    setAddNote("");
+  }
+
   function addSelected() {
     const people = (employees ?? []).filter((e) => selectedShown.includes(e.Id));
     if (people.length === 0) return setAddNote("Tick the new joiners to add.");
     const added: Row[] = [];
     for (const e of people) {
-      // With "All", each person is only added for the apps chosen for them (a single app is added as picked).
-      const apps = addApp === "All" ? pickerApps.filter((app) => e.TrainingApps.includes(app)) : pickerApps;
+      // With "All apps", each person is only added for the apps chosen for them; picked apps are added as picked.
+      const apps = allApps ? pickerApps.filter((app) => e.TrainingApps.includes(app)) : pickerApps;
       for (const app of apps) {
         if (inSession.has(`${e.Id}|${app}`)) continue;
         added.push({ key: randomId(), employeeId: e.Id, displayName: e.DisplayName, subtitle: subtitleOf(e), app, trainers: [...trainers[app]] });
       }
     }
     if (added.length === 0) {
-      return setAddNote(addApp === "All" ? "No apps are chosen for the ticked joiners. Pick an app under “Train on” to add them anyway." : "Already added.");
+      return setAddNote(allApps ? "No apps are chosen for the ticked joiners. Pick apps under “Train on” to add them anyway." : "Already added.");
     }
     if (rows.length + added.length > MAX_ATTENDEES) return setAddNote(`A session can have at most ${MAX_ATTENDEES} employee/app rows.`);
     setRows((prev) => [...prev, ...added]);
@@ -427,18 +432,27 @@ export default function TrainingForm({ session, onClose, onSaved }: TrainingForm
 
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 p-2">
               <span className="text-xs text-slate-500">Train on</span>
-              <div className="inline-flex overflow-hidden rounded-md border border-slate-300 bg-surface text-xs font-medium" role="group" aria-label="App">
-                {([...APPS, "All"] as AppChoice[]).map((a) => (
+              <div className="inline-flex overflow-hidden rounded-md border border-slate-300 bg-surface text-xs font-medium" role="group" aria-label="Apps to train on (pick one or more)">
+                {APPS.map((a) => (
                   <button
                     key={a}
                     type="button"
-                    onClick={() => setAddApp(a)}
-                    className={`px-3 py-1.5 ${addApp === a ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-                    aria-pressed={addApp === a}
+                    onClick={() => toggleAddApp(a)}
+                    className={`px-3 py-1.5 ${addApps.includes(a) ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+                    aria-pressed={addApps.includes(a)}
                   >
-                    {a === "All" ? "All apps" : a}
+                    {a}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setAddApps([])}
+                  className={`px-3 py-1.5 ${allApps ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+                  aria-pressed={allApps}
+                  title="Each joiner's own chosen apps"
+                >
+                  All apps
+                </button>
               </div>
               {addNote && <span className="text-xs text-amber-700">{addNote}</span>}
               <button type="button" className="btn-primary ml-auto py-1.5" onClick={addSelected} disabled={selectedShown.length === 0}>
