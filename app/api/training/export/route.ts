@@ -74,11 +74,13 @@ export async function GET(request: NextRequest) {
       { header: "End", key: "EndAt", width: 18, style: { numFmt: DATE_FORMAT } },
       { header: "Mode", key: "Mode", width: 13 },
       { header: "Location / Meeting Link", key: "Where", width: 28 },
-      { header: "Status", key: "Status", width: 12 },
+      { header: "Session Status", key: "Status", width: 14 },
+      { header: "Training Status", key: "AttendeeStatus", width: 15 },
+      { header: "Completed At", key: "CompletedAt", width: 18, style: { numFmt: DATE_FORMAT } },
     ];
     styleHeader(recordSheet);
     for (const r of recordRows.recordset) {
-      recordSheet.addRow({ ...r, ...modeColumns(r), StartAt: localDate(r.StartAt) ?? "Date not recorded", EndAt: localDate(r.EndAt) }).alignment = { vertical: "top", wrapText: true };
+      recordSheet.addRow({ ...r, ...modeColumns(r), StartAt: localDate(r.StartAt) ?? "Date not recorded", EndAt: localDate(r.EndAt), CompletedAt: localDate(r.CompletedAt) }).alignment = { vertical: "top", wrapText: true };
     }
 
     const sessionSheet = workbook.addWorksheet("Sessions", { views: [{ state: "frozen", ySplit: 1 }] });

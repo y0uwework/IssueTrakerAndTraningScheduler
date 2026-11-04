@@ -395,7 +395,11 @@ export async function importLegacyTraining(items: unknown[], trainerNames: unkno
           });
           await req.query(`
             DECLARE @AttendeeId INT;
-            INSERT INTO dbo.TrainingAttendees (SessionId, EmployeeId, App) VALUES (@SessionId, @EmployeeId, @App);
+            INSERT INTO dbo.TrainingAttendees (SessionId, EmployeeId, App, Status, CompletedAt)
+            SELECT @SessionId, @EmployeeId, @App,
+                   CASE s.Status WHEN N'Completed' THEN N'Completed' ELSE N'Going on' END,
+                   CASE WHEN s.Status = N'Completed' THEN COALESCE(s.EndAt, s.StartAt, SYSUTCDATETIME()) END
+            FROM dbo.TrainingSessions s WHERE s.Id = @SessionId;
             SET @AttendeeId = SCOPE_IDENTITY();
             INSERT INTO dbo.TrainingAttendeeTrainers (AttendeeId, TrainerName) VALUES ${values.join(", ")};
             -- Being trained on an app means the joiner needs it.

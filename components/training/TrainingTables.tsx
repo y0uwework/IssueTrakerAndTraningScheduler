@@ -5,7 +5,7 @@ import { Check, ExternalLink, Eye, GraduationCap, Image as ImageIcon, Loader2, P
 import { AppBadge, AppTrainingBadge, TrainingStatusBadge } from "../StatusBadge";
 import { ModeLabel } from "./TrainingDetails";
 import { readJson } from "@/lib/http";
-import { TRAINERS, findTrainer, formatDate, formatDateTime, type App, type PendingTrainingRow, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
+import { ATTENDEE_STATUSES, TRAINERS, findTrainer, formatDate, formatDateTime, type App, type AttendeeStatus, type PendingTrainingRow, type TrainingRecordRow, type TrainingSessionListItem } from "@/lib/types";
 
 const dash = <span className="text-slate-300">—</span>;
 const th = "px-4 py-2.5 font-medium";
@@ -230,6 +230,99 @@ function TrainedByCell({
   );
 }
 
+const ATTENDEE_STATUS_STYLES: Record<AttendeeStatus, string> = {
+  "Going on": "bg-blue-50 text-blue-700 ring-blue-600/20 hover:bg-blue-100",
+  Completed: "bg-green-50 text-green-700 ring-green-600/20 hover:bg-green-100",
+};
+
+// Per-employee "Status" cell: a badge normally; in edit mode a dropdown that saves on change.
+// Completed also shows when the training ended (stamped by the server when it was marked completed).
+function AttendeeStatusCell({
+  record,
+  editing,
+  onSaved,
+}: {
+  record: TrainingRecordRow;
+  editing: boolean;
+  onSaved: (attendeeId: number, status: AttendeeStatus, completedAt: string | null) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function change(status: AttendeeStatus) {
+    if (status === record.AttendeeStatus || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const res = await readJson<{ status: AttendeeStatus; completedAt: string | null }>(
+        await fetch(`/api/training/attendees/${record.AttendeeId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
+      );
+      onSaved(record.AttendeeId, res.status, res.completedAt);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const ended = record.AttendeeStatus === "Completed" && record.CompletedAt && (
+    <p className="mt-1 text-[11px] whitespace-nowrap text-slate-500" title="Training completed at">
+      Ended {formatDateTime(record.CompletedAt)}
+    </p>
+  );
+
+  if (!editing) {
+    return (
+      <div className="min-w-36">
+        <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ATTENDEE_STATUS_STYLES[record.AttendeeStatus]}`}>
+          {record.AttendeeStatus}
+        </span>
+        {ended}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-36">
+      <div className="flex items-center gap-1">
+        <select
+          className={`cursor-pointer rounded-full border-0 py-0.5 pr-6 pl-2 text-xs font-medium ring-1 ring-inset disabled:opacity-60 ${ATTENDEE_STATUS_STYLES[record.AttendeeStatus]}`}
+          value={record.AttendeeStatus}
+          disabled={saving}
+          onChange={(e) => change(e.target.value as AttendeeStatus)}
+          aria-label={`Training status for ${record.DisplayName} (${record.App})`}
+        >
+          {ATTENDEE_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        {saving && <Loader2 size={13} className="animate-spin text-slate-400" />}
+      </div>
+      {ended}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// "Edit" / "Done" toggle shown in a column header of the records table.
+function EditToggle({ editing, onToggle, what }: { editing: boolean; onToggle: () => void; what: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
+        editing ? "bg-blue-600 text-white hover:bg-blue-700" : "text-blue-600 hover:bg-blue-50"
+      }`}
+      aria-pressed={editing}
+      title={editing ? `Stop editing ${what}` : `Edit ${what}`}
+    >
+      {editing ? <Check size={12} /> : <Pencil size={12} />} {editing ? "Done" : "Edit"}
+    </button>
+  );
+}
+
 /** Joiners still to be trained on an app: not in any session yet, or only in a scheduled one. */
 export function PendingTable({ rows, onView }: { rows: PendingTrainingRow[]; onView: (sessionId: number) => void }) {
   return (
@@ -291,13 +384,16 @@ export function RecordsTable({
   records,
   onView,
   onTrainerSaved,
+  onStatusSaved,
 }: {
   records: TrainingRecordRow[];
   onView: (sessionId: number) => void;
   onTrainerSaved: (attendeeId: number, trainers: string) => void;
+  onStatusSaved: (attendeeId: number, status: AttendeeStatus, completedAt: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [activeId, setActiveId] = useState<number | null>(null);
+  const [editingStatus, setEditingStatus] = useState(false);
 
   return (
     <div className="overflow-x-auto">
@@ -311,25 +407,24 @@ export function RecordsTable({
             <th className={th}>
               <span className="inline-flex items-center gap-2">
                 Trained By
-                <button
-                  type="button"
-                  onClick={() => {
+                <EditToggle
+                  editing={editing}
+                  onToggle={() => {
                     setEditing((v) => !v);
                     setActiveId(null);
                   }}
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
-                    editing ? "bg-blue-600 text-white hover:bg-blue-700" : "text-blue-600 hover:bg-blue-50"
-                  }`}
-                  aria-pressed={editing}
-                  title={editing ? "Stop editing trainers" : "Edit who trained each employee"}
-                >
-                  {editing ? <Check size={12} /> : <Pencil size={12} />} {editing ? "Done" : "Edit"}
-                </button>
+                  what="trainers"
+                />
               </span>
             </th>
             <th className={th}>Date &amp; Time</th>
             <th className={th}>Session</th>
-            <th className={th}>Status</th>
+            <th className={th}>
+              <span className="inline-flex items-center gap-2">
+                Status
+                <EditToggle editing={editingStatus} onToggle={() => setEditingStatus((v) => !v)} what="status" />
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -370,7 +465,7 @@ export function RecordsTable({
                 </button>
               </td>
               <td className="px-4 py-3">
-                <TrainingStatusBadge status={r.Status} />
+                <AttendeeStatusCell record={r} editing={editingStatus} onSaved={onStatusSaved} />
               </td>
             </tr>
           ))}

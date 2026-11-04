@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { errorResponse, handleError, parseId } from "@/lib/api";
-import { MAX_TRAINERS, TRAINERS, findTrainer } from "@/lib/types";
+import { ATTENDEE_STATUSES, MAX_TRAINERS, TRAINERS, findTrainer, type AttendeeStatus } from "@/lib/types";
 
-// PATCH /api/training/attendees/[attendeeId]  (JSON: { trainer })
+// PATCH /api/training/attendees/[attendeeId]  (JSON: { trainer } or { status })
 // Sets who trained this employee on this app (one trainer from the master config). If that trainer
 // isn't assigned to the session for this app yet, they are added to the session too.
 export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/training/attendees/[attendeeId]">) {
   const attendeeId = parseId((await ctx.params).attendeeId);
   if (!attendeeId) return errorResponse("Invalid training record ID.", 400);
 
-  const body = (await request.json().catch(() => null)) as { trainer?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { trainer?: unknown; status?: unknown } | null;
+  if (body && "status" in body) return updateStatus(attendeeId, body.status);
   const trainer = typeof body?.trainer === "string" ? findTrainer(body.trainer) : undefined;
   if (!trainer) return errorResponse(`Choose a trainer: ${TRAINERS.join(", ")}.`, 400);
 
@@ -55,5 +56,35 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/traini
     }
   } catch (err) {
     return handleError(err, "update the trainer");
+  }
+}
+
+// PATCH body { status: "Going on" | "Completed" }: sets this employee's training progress.
+// Marking it Completed stamps CompletedAt with the current time (when their training ended);
+// switching back to Going on clears it.
+async function updateStatus(attendeeId: number, value: unknown) {
+  const status = ATTENDEE_STATUSES.find((s) => s === value);
+  if (!status) return errorResponse(`Status must be one of: ${ATTENDEE_STATUSES.join(", ")}.`, 400);
+
+  try {
+    const { sql, pool } = await getDb();
+    const result = await pool
+      .request()
+      .input("AttendeeId", sql.Int, attendeeId)
+      .input("Status", sql.NVarChar(20), status)
+      .query<{ Status: AttendeeStatus; CompletedAt: Date | null }>(`
+        UPDATE dbo.TrainingAttendees
+        SET CompletedAt = CASE WHEN @Status = N'Completed'
+                               THEN CASE WHEN Status = N'Completed' THEN CompletedAt ELSE SYSUTCDATETIME() END
+                          END,
+            Status = @Status
+        OUTPUT inserted.Status, inserted.CompletedAt
+        WHERE AttendeeId = @AttendeeId;
+      `);
+    const row = result.recordset[0];
+    if (!row) return errorResponse("Training record not found.", 404);
+    return NextResponse.json({ attendeeId, status: row.Status, completedAt: row.CompletedAt });
+  } catch (err) {
+    return handleError(err, "update the training status");
   }
 }

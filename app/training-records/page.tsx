@@ -357,6 +357,10 @@ export default function TrainingRecords() {
                   setData((d) => (d?.records ? { ...d, records: d.records.map((r) => (r.AttendeeId === attendeeId ? { ...r, Trainers: trainers } : r)) } : d));
                   setToast(`Trainer set to ${trainers}.`);
                 }}
+                onStatusSaved={(attendeeId, status, completedAt) => {
+                  setData((d) => (d?.records ? { ...d, records: d.records.map((r) => (r.AttendeeId === attendeeId ? { ...r, AttendeeStatus: status, CompletedAt: completedAt } : r)) } : d));
+                  setToast(status === "Completed" ? "Marked as completed." : "Marked as going on.");
+                }}
               />
             )}
           </div>

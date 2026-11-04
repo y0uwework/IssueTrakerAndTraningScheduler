@@ -165,6 +165,14 @@ export function addSessionInputs(sql: Sql, request: MSSQL.Request, f: SessionFie
 
 /** Replaces a session's trainers and attendees inside a transaction. */
 export async function writeSessionPeople(sql: Sql, tx: MSSQL.Transaction, sessionId: number, f: SessionFields) {
+  // Keep each employee's progress (Going on / Completed) across the delete and re-insert below.
+  const prev = await new sql.Request(tx)
+    .input("SessionId", sql.Int, sessionId)
+    .query<{ EmployeeId: number; App: string; Status: string; CompletedAt: Date | null }>(
+      "SELECT EmployeeId, App, Status, CompletedAt FROM dbo.TrainingAttendees WHERE SessionId = @SessionId",
+    );
+  const progress = new Map(prev.recordset.map((r) => [`${r.EmployeeId}|${r.App}`, r]));
+
   // Attendee trainer rows are removed by the ON DELETE CASCADE.
   await new sql.Request(tx).input("SessionId", sql.Int, sessionId).query(`
     DELETE FROM dbo.TrainingAttendees WHERE SessionId = @SessionId;
@@ -189,18 +197,26 @@ export async function writeSessionPeople(sql: Sql, tx: MSSQL.Transaction, sessio
   }
 
   for (const a of f.attendees) {
+    const kept = progress.get(`${a.employeeId}|${a.app}`);
     const req = new sql.Request(tx)
       .input("SessionId", sql.Int, sessionId)
       .input("EmployeeId", sql.Int, a.employeeId)
-      .input("App", sql.NVarChar(20), a.app);
+      .input("App", sql.NVarChar(20), a.app)
+      .input("AttendeeStatus", sql.NVarChar(20), kept?.Status ?? null)
+      .input("CompletedAt", sql.DateTime2, kept?.CompletedAt ?? null);
     const values = a.trainers.map((t, i) => {
       req.input(`T${i}`, sql.NVarChar(100), t);
       return `(@AttendeeId, @T${i})`;
     });
     await req.query(`
       DECLARE @AttendeeId INT;
-      INSERT INTO dbo.TrainingAttendees (SessionId, EmployeeId, App)
-      VALUES (@SessionId, @EmployeeId, @App);
+      -- New attendees of a session that is already completed start as completed (at the session end).
+      INSERT INTO dbo.TrainingAttendees (SessionId, EmployeeId, App, Status, CompletedAt)
+      SELECT @SessionId, @EmployeeId, @App,
+             COALESCE(@AttendeeStatus, CASE s.Status WHEN N'Completed' THEN N'Completed' ELSE N'Going on' END),
+             CASE WHEN @AttendeeStatus IS NOT NULL THEN @CompletedAt
+                  WHEN s.Status = N'Completed' THEN COALESCE(s.EndAt, s.StartAt, SYSUTCDATETIME()) END
+      FROM dbo.TrainingSessions s WHERE s.Id = @SessionId;
       SET @AttendeeId = SCOPE_IDENTITY();
       INSERT INTO dbo.TrainingAttendeeTrainers (AttendeeId, TrainerName) VALUES ${values.join(", ")};
       -- Being trained on an app means the joiner needs it.
@@ -302,7 +318,7 @@ const PENDING_JOIN = `
 const PENDING_WHERE = `
   WHERE NOT EXISTS (
     SELECT 1 FROM dbo.TrainingAttendees ca JOIN dbo.TrainingSessions cs ON cs.Id = ca.SessionId
-    WHERE ca.EmployeeId = r.EmployeeId AND ca.App = r.App AND cs.Status = N'Completed'
+    WHERE ca.EmployeeId = r.EmployeeId AND ca.App = r.App AND (cs.Status = N'Completed' OR ca.Status = N'Completed')
   )`;
 
 /** COUNT(*) of pending employee/app pairs; `whereSql` comes from buildPendingFilter (empty = all). */
@@ -329,7 +345,7 @@ export function buildPendingFilter(sql: Sql, req: MSSQL.Request, params: URLSear
   }
 
   const scheduled = `EXISTS (SELECT 1 FROM dbo.TrainingAttendees sa JOIN dbo.TrainingSessions ss ON ss.Id = sa.SessionId
-    WHERE sa.EmployeeId = r.EmployeeId AND sa.App = r.App AND ss.Status = N'Scheduled')`;
+    WHERE sa.EmployeeId = r.EmployeeId AND sa.App = r.App AND ss.Status = N'Scheduled' AND sa.Status <> N'Completed')`;
   const state = params.get("state");
   if (state === "scheduled") where.push(scheduled);
   else if (state === "unscheduled") where.push(`NOT ${scheduled}`);
@@ -350,7 +366,7 @@ export function pendingQuery(whereSql: string, orderSql: string) {
     OUTER APPLY (
       SELECT TOP 1 ns.Id AS SessionId, ns.Title, ns.StartAt
       FROM dbo.TrainingAttendees na JOIN dbo.TrainingSessions ns ON ns.Id = na.SessionId
-      WHERE na.EmployeeId = r.EmployeeId AND na.App = r.App AND ns.Status = N'Scheduled'
+      WHERE na.EmployeeId = r.EmployeeId AND na.App = r.App AND ns.Status = N'Scheduled' AND na.Status <> N'Completed'
       ORDER BY ns.StartAt, ns.Id
     ) nx
     ${PENDING_WHERE} ${whereSql}
@@ -363,7 +379,7 @@ export function recordsQuery(whereSql: string, orderSql: string) {
   return `
     SELECT a.AttendeeId, s.Id AS SessionId, s.Title, s.StartAt, s.EndAt, s.Mode, s.Location, s.MeetingLink, s.Status,
            e.Id AS EmployeeId, e.DisplayName, e.Email, e.Unit, e.EmployeeLevel, e.Designation, e.Department, e.BaseLocation,
-           e.DateOfJoining, e.ReportingTo, a.App,
+           e.DateOfJoining, e.ReportingTo, a.App, a.Status AS AttendeeStatus, a.CompletedAt,
            (SELECT STRING_AGG(t.TrainerName, N', ') WITHIN GROUP (ORDER BY t.TrainerName)
             FROM dbo.TrainingAttendeeTrainers t WHERE t.AttendeeId = a.AttendeeId) AS Trainers
     FROM dbo.TrainingAttendees a

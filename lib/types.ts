@@ -77,6 +77,10 @@ export function toLocalInput(value: string | null) {
 export const TRAINING_STATUSES = ["Scheduled", "Completed", "Cancelled"] as const;
 export type TrainingStatus = (typeof TRAINING_STATUSES)[number];
 
+// Per-employee progress within a session (Training Records → employee records).
+export const ATTENDEE_STATUSES = ["Going on", "Completed"] as const;
+export type AttendeeStatus = (typeof ATTENDEE_STATUSES)[number];
+
 export const TRAINING_MODES = ["F2F", "Online"] as const;
 export type TrainingMode = (typeof TRAINING_MODES)[number];
 export const TRAINING_MODE_LABELS: Record<TrainingMode, string> = { F2F: "Face to face", Online: "Online" };
@@ -155,6 +159,8 @@ export interface TrainingRecordRow {
   DateOfJoining: string | null;
   App: App;
   Trainers: string | null; // comma-separated
+  AttendeeStatus: AttendeeStatus;
+  CompletedAt: string | null; // when this employee's training was marked completed
 }
 
 // One app a new joiner still has to be trained on (chosen for them, no completed session yet).

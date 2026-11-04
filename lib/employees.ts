@@ -112,7 +112,7 @@ export const EMPLOYEE_SELECT = `
          ).join(", ")}
   FROM dbo.Employees e
   OUTER APPLY (
-    SELECT ${APPS.map((app, i) => `MAX(CASE WHEN a.App = ${appLiteral(app)} THEN CASE s.Status WHEN N'Completed' THEN 2 WHEN N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS A${i}`).join(", ")}
+    SELECT ${APPS.map((app, i) => `MAX(CASE WHEN a.App = ${appLiteral(app)} THEN CASE WHEN s.Status = N'Completed' OR a.Status = N'Completed' THEN 2 WHEN s.Status = N'Scheduled' THEN 1 ELSE 0 END ELSE 0 END) AS A${i}`).join(", ")}
     FROM dbo.TrainingAttendees a JOIN dbo.TrainingSessions s ON s.Id = a.SessionId
     WHERE a.EmployeeId = e.Id
   ) tr
