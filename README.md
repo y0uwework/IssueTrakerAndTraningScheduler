@@ -36,7 +36,7 @@ The app has three modules, all on one SQL Server database and reached from the s
 - Light/dark theme toggle.
 - Safe uploads: magic-byte checks, random file names, and images served only through IDs stored in the database.
 - Versioned SQL migrations (`npm run migrate`).
-- Runs on `localhost` by default. `npm run dev:lan` / `npm run start:lan` serves it on the machine's LAN IP.
+- `npm run dev` serves the app on both `localhost` and the machine's LAN IP at once. `npm run start` stays on `localhost`; `npm run start:lan` serves it on both.
 
 ## Use cases
 
