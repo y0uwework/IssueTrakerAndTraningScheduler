@@ -58,7 +58,7 @@ interface SessionsTableProps {
 export function SessionsTable({ sessions, onView, onEdit, onDelete }: SessionsTableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[960px] text-left text-sm">
+      <table className="w-full min-w-240 text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
           <tr>
             <th className={th}>ID</th>
@@ -95,7 +95,7 @@ export function SessionsTable({ sessions, onView, onEdit, onDelete }: SessionsTa
               <td className="px-4 py-3">
                 <AppList apps={s.Apps} />
               </td>
-              <td className="max-w-[14rem] truncate px-4 py-3 text-slate-600" title={s.Trainers ?? undefined}>
+              <td className="max-w-56 truncate px-4 py-3 text-slate-600" title={s.Trainers ?? undefined}>
                 {s.Trainers || dash}
               </td>
               <td className="px-4 py-3 text-slate-600">{s.EmployeeCount || dash}</td>
@@ -327,7 +327,7 @@ function EditToggle({ editing, onToggle, what }: { editing: boolean; onToggle: (
 export function PendingTable({ rows, onView }: { rows: PendingTrainingRow[]; onView: (sessionId: number) => void }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-left text-sm">
+      <table className="w-full min-w-215 text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
           <tr>
             <th className={th}>Employee</th>
@@ -397,7 +397,7 @@ export function RecordsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[960px] text-left text-sm">
+      <table className="w-full min-w-240 text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
           <tr>
             <th className={th}>Employee</th>
