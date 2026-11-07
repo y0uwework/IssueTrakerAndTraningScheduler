@@ -50,44 +50,117 @@ The app has three modules, all on one SQL Server database and reached from the s
 
 ## Workflow
 
+How the project works, from first setup to day-to-day use.
+
+### 1. Setup and startup
+
+```mermaid
+flowchart LR
+    A[npm install] --> B[Copy .env.local.example to .env.local<br/>fill in DB_SERVER, DB_AUTH, login]
+    B --> C[npm run migrate]
+    C --> D[(IssueTrackerDB<br/>tables from database/migrations/<br/>applied list in SchemaMigrations)]
+    D --> E[npm run dev]
+    E --> F[scripts/lan.mjs starts Next.js]
+    F --> G([http://localhost:3000<br/>and http://LAN-IP:3000])
+```
+
+`npm run migrate` creates the database if it's missing and applies only the migrations not yet recorded in `dbo.SchemaMigrations`. `scripts/lan.mjs` finds the machine's LAN IP (`lib/lan-ip.mjs`) and starts `next dev` (or `next start`) on all interfaces, so the app is reachable on both addresses.
+
+### 2. How a request flows through the app
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant P as Page (app/page.tsx,<br/>app/employees, app/training-records)
+    participant API as API route (app/api/...)
+    participant V as Validation<br/>(lib/api.ts, lib/uploads.ts)
+    participant DB as SQL Server<br/>(lib/db.ts pool)
+    participant FS as uploads/ folder
+
+    U->>P: Click, fill a form, pick filters
+    P->>API: fetch() JSON or multipart/form-data
+    API->>V: Check fields, IDs, file magic bytes and sizes
+    alt Invalid input
+        V-->>API: ValidationError
+        API-->>P: 400 + message shown in the form
+    else Valid
+        API->>FS: Write new screenshots (random UUID names)
+        API->>DB: Queries inside one transaction
+        alt Transaction fails
+            API->>FS: Delete the files just written
+            API-->>P: 500 + error message
+        else Commits
+            API->>FS: Delete files of removed images
+            API-->>P: JSON result
+            P-->>U: Table, cards and counts refresh
+        end
+    end
+```
+
+Every page is a client component that talks only to the API routes. The routes are the only code that touches the database (`lib/db.ts` is `server-only`), and screenshots are served back through `/api/images/<id>` and `/api/training/images/<id>`, which look the file up by its database ID.
+
+### 3. Module flow: Issues → New Joiners → Training
+
 ```mermaid
 flowchart TD
-    U([User opens the app in a browser]) --> NAV{Sidebar}
+    U([User opens the app]) --> NAV{Sidebar<br/>configs/sidebar-config.ts}
 
-    NAV --> ISS[Issues]
-    NAV --> EMP[New Joiners]
-    NAV --> TRN[Training Records]
+    NAV --> ISS[Issues /]
+    NAV --> EMP[New Joiners /employees]
+    NAV --> TRN[Training Records /training-records]
 
     %% Issues
     ISS --> I1[New Issue: title, priority, category, screenshots]
-    I1 --> I2[(Issues + IssueImages tables, files in uploads/)]
-    I2 --> I3[Open → In Progress → Resolved → Closed]
-    I3 --> I4[Search / filter / view details]
+    I1 --> I2[(Issues + IssueImages, files in uploads/)]
+    I2 --> I3[Open → In Progress → Resolved → Closed<br/>ResolvedAt set/cleared automatically]
+    I3 --> I4[Search / filter / sort / view details]
     I4 --> I5[Export Excel with thumbnails]
 
     %% New joiners
     EMP --> E1{How is the data added?}
     E1 -->|Manual form| E4
-    E1 -->|Import Excel| E2[Match columns by header, validate rows]
-    E1 -->|Import from Image| E3[AI vision model reads the sheet, user reviews and fixes rows]
-    E2 --> E4[(Employees table, matched by email)]
+    E1 -->|Import Excel| E2[Match columns by header,<br/>parse dates, validate rows]
+    E1 -->|Import from Image| E3[AI vision model reads the sheet,<br/>user reviews and fixes rows]
+    E2 --> E4[(Employees, matched by email<br/>or name + joining date)]
     E3 --> E4
-    E4 --> E5[Choose the apps each joiner needs: HRMS / CRM / Prod CRM]
+    E4 --> E5[Choose apps each joiner needs<br/>HRMS / CRM / Prod CRM]
     E5 --> E6[App state = Pending]
+    E4 --> E7[Export Excel / blank template]
 
     %% Training
-    TRN --> T1[Create session: date, time, mode, trainers per app]
+    TRN --> T1[Create session: date/time, mode,<br/>venue or meeting link, trainers per app]
     E6 --> T2[Pending Training view]
-    T2 --> T3[Add selected joiners to a session]
+    T2 --> T3[Add selected joiners to a session<br/>for one app or several]
     T1 --> T3
-    T3 --> T4[App state = Scheduled]
-    T4 --> T5[Mark session Completed, record trainer per attendee]
-    T5 --> T6[App state = Trained]
-    T6 --> T7[Employee Records view + Export Excel]
-    T6 -.updates.-> E4
+    T3 --> T4[App state = Scheduled<br/>attendee = Going on]
+    T4 --> T5[Record which trainer trained each attendee]
+    T5 --> T6{Finished?}
+    T6 -->|Mark one attendee Completed| T7[App state = Trained]
+    T6 -->|Mark whole session Completed| T7
+    T7 --> T8[Employee Records view + Export Excel]
+    T7 -.updates training columns.-> E4
+    TRN --> T9[Import old training sheet<br/>preview, then save]
+    T9 --> T3
 ```
 
-Behind every screen, the browser calls the Next.js API routes in `app/api/`. These validate the input (`lib/api.ts`, `lib/uploads.ts`) and read and write SQL Server through the shared connection pool in `lib/db.ts`.
+### 4. Training state of one joiner for one app
+
+The state shown on the New Joiners page is not stored; it's worked out from the joiner's chosen apps and their training sessions (`lib/employees.ts`).
+
+```mermaid
+stateDiagram-v2
+    [*] --> NotRequired
+    NotRequired --> Pending: App ticked for the joiner
+    Pending --> NotRequired: App unticked
+    Pending --> Scheduled: Added to a Scheduled session<br/>(attendee status "Going on")
+    Scheduled --> Pending: Removed from the session,<br/>or session Cancelled
+    Scheduled --> Trained: Attendee marked Completed,<br/>or session marked Completed
+    Trained --> [*]
+
+    NotRequired: Not required
+```
+
+Adding a joiner to a session for an app also ticks that app for them, so they skip straight from *Not required* to *Scheduled*. Apps and trainers in every dropdown come from `configs/master-config.ts`.
 
 ## Suggested improvements
 
