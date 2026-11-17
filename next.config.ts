@@ -4,6 +4,9 @@ import { getLanIp } from "./lib/lan-ip.mjs";
 const lanIp = process.env.LAN_IP ?? getLanIp();
 
 const nextConfig: NextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   // Allow other devices on the LAN to load dev assets / HMR (IP auto-detected).
   allowedDevOrigins: lanIp ? [lanIp] : [],
   cacheComponents: true,
